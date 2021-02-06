@@ -33,13 +33,15 @@ func init() {
 
 func main() {
 	// TODO: Make the flags consistent with the aws cli
-	var profile, bucket, key, file, bwlimit string
+	var profile, bucket, key, file, bwlimit, contentType, storageClass string
 	var version bool
 	flag.StringVar(&profile, "profile", "default", "The profile to use.")
 	flag.StringVar(&bucket, "bucket", "", "Bucket name.")
 	flag.StringVar(&key, "key", "", "Destination object key name.")
 	flag.StringVar(&file, "file", "", "Input file.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit (e.g. \"2.5m\").")
+	flag.StringVar(&contentType, "content-type", "", "Content type.")
+	flag.StringVar(&storageClass, "storage-class", "", "Storage class (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\").")
 	flag.BoolVar(&version, "version", false, "Print version number.")
 	flag.Parse()
 
@@ -51,6 +53,24 @@ func main() {
 	if bucket == "" || key == "" || file == "" {
 		fmt.Println("--bucket, --key, and --file are all required!")
 		os.Exit(1)
+	}
+
+	createMultipartUploadInput := s3.CreateMultipartUploadInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	}
+
+	if contentType != "" {
+		createMultipartUploadInput.ContentType = aws.String(contentType)
+	}
+
+	if storageClass != "" {
+		if v, err := validStorageClass(storageClass); err == nil {
+			createMultipartUploadInput.StorageClass = v
+		} else {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	}
 
 	var rate int64
@@ -152,10 +172,7 @@ func main() {
 	var offset int64
 	if uploadId == "" {
 		fmt.Println("Creating multipart upload.")
-		outputCreateMultipartUpload, err := client.CreateMultipartUpload(context.TODO(), &s3.CreateMultipartUploadInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(key),
-		})
+		outputCreateMultipartUpload, err := client.CreateMultipartUpload(context.TODO(), &createMultipartUploadInput)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)

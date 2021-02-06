@@ -1,8 +1,12 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strconv"
+
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 func min(a, b int64) int64 {
@@ -32,4 +36,15 @@ func parseLimit(s string) (int64, error) {
 		return 0, err
 	}
 	return int64(math.Round(f * float64(factor))), nil
+}
+
+func validStorageClass(s string) (s3Types.StorageClass, error) {
+	sc := s3Types.StorageClass(s)
+	values := sc.Values()
+	for _, v := range values {
+		if v == sc {
+			return v, nil
+		}
+	}
+	return sc, errors.New(fmt.Sprintf("Invalid --storage-class. Supported values: %v", values))
 }
