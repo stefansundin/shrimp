@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 
 	"github.com/stefansundin/shrimp/flowrate"
@@ -265,6 +266,7 @@ func main() {
 	needMoreParts := (offset < fileSize)
 	for needMoreParts {
 		partNumber += 1
+		partStartTime := time.Now()
 
 		partSize := min(chunksize, fileSize-offset)
 		partData := make([]byte, partSize)
@@ -274,27 +276,35 @@ func main() {
 			os.Exit(1)
 		}
 
-		var reader io.Reader
-		if rate == 0 {
-			reader = bytes.NewReader(partData)
-		} else {
-			reader = flowrate.NewReader(bytes.NewReader(partData), rate)
+		reader := flowrate.NewReader(bytes.NewReader(partData), rate)
+		reader.SetTransferSize(partSize)
+
+		// Start the upload in a go routine
+		var outputUploadPart *s3.UploadPartOutput
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			outputUploadPart, err = client.UploadPart(context.TODO(), &s3.UploadPartInput{
+				Bucket:     aws.String(bucket),
+				Key:        aws.String(key),
+				UploadId:   aws.String(uploadId),
+				PartNumber: partNumber,
+				Body:       reader,
+			})
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			wg.Done()
+		}()
+
+		// Print status updates while the upload is in progress
+		for waitTimeout(&wg, time.Second) {
+			s := reader.Status()
+			fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %d b/s, %s remaining", partNumber, len(partData), s.Progress, s.CurRate, s.TimeRem)
 		}
 
-		fmt.Printf("Uploading part %d (%d bytes)..", partNumber, len(partData))
-		partStartTime := time.Now()
-		outputUploadPart, err := client.UploadPart(context.TODO(), &s3.UploadPartInput{
-			Bucket:     aws.String(bucket),
-			Key:        aws.String(key),
-			UploadId:   aws.String(uploadId),
-			PartNumber: partNumber,
-			Body:       reader,
-		})
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		fmt.Printf("\rUploaded part %d (%d bytes) in %s.\n", partNumber, len(partData), time.Since(partStartTime).Round(time.Second))
+		fmt.Printf("\033[2K\rUploaded part %d (%d bytes) in %s.\n", partNumber, len(partData), time.Since(partStartTime).Round(time.Second))
 
 		// Check if the user wants to stop
 		if interrupted {
