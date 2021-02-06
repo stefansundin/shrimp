@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/stefansundin/go-flowrate/flowrate"
 	"golang.org/x/sys/unix"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -30,12 +31,13 @@ func init() {
 
 func main() {
 	// TODO: Make the flags consistent with the aws cli
-	var profile, bucket, key, file string
+	var profile, bucket, key, file, bwlimit string
 	var version bool
 	flag.StringVar(&profile, "profile", "default", "The profile to use.")
 	flag.StringVar(&bucket, "bucket", "", "Bucket name.")
 	flag.StringVar(&key, "key", "", "Destination object key name.")
 	flag.StringVar(&file, "file", "", "Input file.")
+	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit (e.g. \"2.5m\").")
 	flag.BoolVar(&version, "version", false, "Print version number.")
 	flag.Parse()
 
@@ -47,6 +49,16 @@ func main() {
 	if bucket == "" || key == "" || file == "" {
 		fmt.Println("--bucket, --key, and --file are all required!")
 		os.Exit(1)
+	}
+
+	var rate int64
+	if bwlimit != "" {
+		var err error
+		rate, err = parseLimit(bwlimit)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
 
 	// Check if we can read from the file
@@ -213,6 +225,13 @@ func main() {
 			os.Exit(1)
 		}
 
+		var reader io.Reader
+		if rate == 0 {
+			reader = bytes.NewReader(partData)
+		} else {
+			reader = flowrate.NewReader(bytes.NewReader(partData), rate)
+		}
+
 		fmt.Printf("Uploading part %d (%d bytes)..", partNumber, len(partData))
 		partStartTime := time.Now()
 		outputUploadPart, err := client.UploadPart(context.TODO(), &s3.UploadPartInput{
@@ -220,7 +239,7 @@ func main() {
 			Key:        aws.String(key),
 			UploadId:   aws.String(uploadId),
 			PartNumber: partNumber,
-			Body:       bytes.NewReader(partData),
+			Body:       reader,
 		})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
