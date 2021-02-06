@@ -230,13 +230,7 @@ func main() {
 	for needMoreParts {
 		partNumber += 1
 
-		var partSize int64
-		if fileSize-offset > chunksize {
-			partSize = chunksize
-		} else {
-			partSize = fileSize - offset
-		}
-
+		partSize := min(chunksize, fileSize-offset)
 		partData := make([]byte, partSize)
 		n, err := f.ReadAt(partData, offset)
 		if err != nil && err != io.EOF {

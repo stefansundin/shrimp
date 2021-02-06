@@ -5,6 +5,13 @@ import (
 	"strconv"
 )
 
+func min(a, b int64) int64 {
+	if a > b {
+		return b
+	}
+	return a
+}
+
 func parseLimit(s string) (int64, error) {
 	factor := 1
 	suffix := s[len(s)-1]
