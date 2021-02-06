@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/stefansundin/go-flowrate/flowrate"
@@ -207,6 +208,23 @@ func main() {
 		}
 	}
 
+	// Trap Ctrl-C signal
+	interrupted := false
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt)
+	go func() {
+		for sig := range signalChannel {
+			if sig != os.Interrupt {
+				continue
+			}
+			if interrupted {
+				os.Exit(1)
+			}
+			interrupted = true
+			fmt.Println("\nInterrupt received, finishing current part. Press Ctrl-C again to exit immediately.")
+		}
+	}()
+
 	needMoreParts := (offset < fileSize)
 	for needMoreParts {
 		partNumber += 1
@@ -247,6 +265,12 @@ func main() {
 		}
 		fmt.Printf("\rUploaded part %d (%d bytes) in %s.\n", partNumber, len(partData), time.Since(partStartTime).Round(time.Second))
 
+		// Check if the user wants to stop
+		if interrupted {
+			fmt.Println("Exited early.")
+			os.Exit(0)
+		}
+
 		parts = append(parts, s3Types.CompletedPart{
 			ETag:       outputUploadPart.ETag,
 			PartNumber: partNumber,
@@ -254,6 +278,7 @@ func main() {
 		offset += int64(n)
 		needMoreParts = (offset < fileSize)
 	}
+	signal.Reset(os.Interrupt)
 
 	// Do a sanity check
 	if offset != fileSize {
