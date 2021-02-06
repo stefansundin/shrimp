@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
-	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -90,19 +88,4 @@ func validStorageClass(s string) (s3Types.StorageClass, error) {
 		}
 	}
 	return sc, errors.New(fmt.Sprintf("Invalid --storage-class. Supported values: %v", values))
-}
-
-func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-
-	select {
-	case <-c:
-		return false // wait group finished
-	case <-time.After(timeout):
-		return true // timed out
-	}
 }

@@ -298,10 +298,22 @@ func main() {
 			wg.Done()
 		}()
 
+		// Create a channel that closes when the upload is done
+		doneCh := make(chan struct{})
+		go func() {
+			defer close(doneCh)
+			wg.Wait()
+		}()
+
 		// Print status updates while the upload is in progress
-		for waitTimeout(&wg, time.Second) {
-			s := reader.Status()
-			fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %d b/s, %s remaining", partNumber, len(partData), s.Progress, s.CurRate, s.TimeRem)
+		for doneCh != nil {
+			select {
+			case <-doneCh:
+				doneCh = nil
+			case <-time.After(time.Second):
+				s := reader.Status()
+				fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %d b/s, %s remaining", partNumber, len(partData), s.Progress, s.CurRate, s.TimeRem)
+			}
 		}
 
 		fmt.Printf("\033[2K\rUploaded part %d (%d bytes) in %s.\n", partNumber, len(partData), time.Since(partStartTime).Round(time.Second))
