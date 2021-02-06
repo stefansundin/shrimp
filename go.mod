@@ -6,6 +6,5 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.1.0
 	github.com/aws/aws-sdk-go-v2/config v1.1.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.1.0
-	github.com/stefansundin/go-flowrate v0.0.0-20210203074712-70c4dd65ab56
 	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
 )

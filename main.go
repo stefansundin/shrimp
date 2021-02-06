@@ -10,7 +10,8 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/stefansundin/go-flowrate/flowrate"
+	"github.com/stefansundin/shrimp/flowrate"
+
 	"golang.org/x/sys/unix"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
