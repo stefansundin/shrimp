@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/signal"
 	"time"
@@ -102,6 +104,23 @@ func main() {
 	// Open the file
 	f, _ := os.Open(file)
 	defer f.Close()
+
+	// Look for a SHA256SUMS file and get this file's hash
+	_, err = os.Stat("SHA256SUMS")
+	if !errors.Is(err, fs.ErrNotExist) {
+		sum, err := getSha256Sum("SHA256SUMS", file)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		} else if sum == "" {
+			fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file.")
+		} else {
+			if createMultipartUploadInput.Metadata == nil {
+				createMultipartUploadInput.Metadata = make(map[string]string)
+			}
+			createMultipartUploadInput.Metadata["sha256sum"] = sum
+		}
+	}
 
 	// Initialize the AWS SDK
 	cfg, err := config.LoadDefaultConfig(
