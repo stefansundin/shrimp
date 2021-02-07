@@ -31,6 +31,9 @@ type Monitor struct {
 
 	tBytes int64         // Number of bytes expected in the current transfer
 	tLast  time.Duration // Time of the most recent transfer of at least 1 byte
+
+	prevBytes  int64 // Number of bytes transferred in previous parts
+	totalBytes int64 // Number of bytes expected in the total transfer
 }
 
 // New creates a new flow control monitor. Instantaneous transfer rate is
@@ -134,50 +137,10 @@ func (m *Monitor) Status() Status {
 		PeakRate: round(m.rPeak),
 		BytesRem: m.tBytes - m.bytes,
 		Progress: percentOf(float64(m.bytes), float64(m.tBytes)),
-	}
-	if s.BytesRem < 0 {
-		s.BytesRem = 0
-	}
-	if s.Duration > 0 {
-		rAvg := float64(s.Bytes) / s.Duration.Seconds()
-		s.AvgRate = round(rAvg)
-		if s.Active {
-			s.InstRate = round(m.rSample)
-			s.CurRate = round(m.rEMA)
-			if s.BytesRem > 0 {
-				if tRate := 0.8*m.rEMA + 0.2*rAvg; tRate > 0 {
-					ns := float64(s.BytesRem) / tRate * 1e9
-					if ns > float64(timeRemLimit) {
-						ns = float64(timeRemLimit)
-					}
-					s.TimeRem = clockRound(time.Duration(ns))
-				}
-			}
-		}
-	}
-	m.mu.Unlock()
-	return s
-}
 
-// Status returns transfer status information based on variable bytes
-// and tBytes values.
-func (m *Monitor) StatusTotal(prevBytes int64, totalBytes int64) Status {
-	m.mu.Lock()
-	now := m.update(0)
-	s := Status{
-		Active:   m.active,
-		Start:    clockToTime(m.start),
-		Duration: m.sLast - m.start,
-		Idle:     now - m.tLast,
-		Bytes:    m.bytes,
-		Samples:  m.samples,
-		PeakRate: round(m.rPeak),
-		BytesRem: m.tBytes - m.bytes,
-		Progress: percentOf(float64(m.bytes), float64(m.tBytes)),
-
-		TotalBytes:    prevBytes + m.bytes,
-		TotalBytesRem: totalBytes - prevBytes - m.bytes,
-		TotalProgress: percentOf(float64(prevBytes+m.bytes), float64(totalBytes)),
+		TotalBytes:    m.prevBytes + m.bytes,
+		TotalBytesRem: m.totalBytes - m.prevBytes - m.bytes,
+		TotalProgress: percentOf(float64(m.prevBytes+m.bytes), float64(m.totalBytes)),
 	}
 	if s.BytesRem < 0 {
 		s.BytesRem = 0
@@ -262,6 +225,20 @@ func (m *Monitor) SetTransferSize(bytes int64) {
 	}
 	m.mu.Lock()
 	m.tBytes = bytes
+	m.mu.Unlock()
+}
+
+// SetTotal specifies information to calculate total progress.
+func (m *Monitor) SetTotal(prevBytes, totalBytes int64) {
+	if prevBytes < 0 {
+		prevBytes = 0
+	}
+	if totalBytes < 0 {
+		totalBytes = 0
+	}
+	m.mu.Lock()
+	m.prevBytes = prevBytes
+	m.totalBytes = totalBytes
 	m.mu.Unlock()
 }
 

@@ -277,6 +277,7 @@ func main() {
 
 		reader := flowrate.NewReader(bytes.NewReader(partData), rate)
 		reader.SetTransferSize(partSize)
+		reader.SetTotal(offset, fileSize)
 
 		// Start the upload in a go routine
 		doneCh := make(chan struct{})
@@ -302,7 +303,7 @@ func main() {
 			case <-doneCh:
 				doneCh = nil
 			case <-time.After(time.Second):
-				s := reader.StatusTotal(offset, fileSize)
+				s := reader.Status()
 				fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %d b/s, %s remaining (total: %s, %s remaining)", partNumber, len(partData), s.Progress, s.CurRate, s.TimeRem, s.TotalProgress, s.TotalTimeRem)
 			}
 		}
