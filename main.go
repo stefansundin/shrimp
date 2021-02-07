@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"os"
 	"os/signal"
-	"sync"
 	"time"
 
 	"github.com/stefansundin/shrimp/flowrate"
@@ -280,10 +279,10 @@ func main() {
 		reader.SetTransferSize(partSize)
 
 		// Start the upload in a go routine
+		doneCh := make(chan struct{})
 		var outputUploadPart *s3.UploadPartOutput
-		var wg sync.WaitGroup
-		wg.Add(1)
 		go func() {
+			defer close(doneCh)
 			outputUploadPart, err = client.UploadPart(context.TODO(), &s3.UploadPartInput{
 				Bucket:     aws.String(bucket),
 				Key:        aws.String(key),
@@ -295,14 +294,6 @@ func main() {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
-			wg.Done()
-		}()
-
-		// Create a channel that closes when the upload is done
-		doneCh := make(chan struct{})
-		go func() {
-			defer close(doneCh)
-			wg.Wait()
 		}()
 
 		// Print status updates while the upload is in progress
