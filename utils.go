@@ -21,16 +21,16 @@ func min(a, b int64) int64 {
 	return a
 }
 
-func parseLimit(s string) (int64, error) {
+func parseRate(s string) (int64, error) {
 	factor := 1
 	suffix := s[len(s)-1]
-	if suffix == 'k' {
-		factor = 1024
-	} else if suffix == 'm' {
-		factor = 1024 * 1024
-	} else if suffix == 'g' {
+	if suffix == 'k' || suffix == 'K' {
+		factor = 1e3
+	} else if suffix == 'm' || suffix == 'M' {
+		factor = 1e6
+	} else if suffix == 'g' || suffix == 'G' {
 		// If you have any use of this then you are lucky and I am jealous :)
-		factor = 1024 * 1024 * 1024
+		factor = 1e9
 	}
 	if factor != 1 {
 		s = s[0 : len(s)-1]
@@ -41,6 +41,16 @@ func parseLimit(s string) (int64, error) {
 		return 0, err
 	}
 	return int64(math.Round(f * float64(factor))), nil
+}
+
+func formatRate(rate int64) string {
+	if rate < 1e3 {
+		return fmt.Sprintf("%d B/s", rate)
+	} else if rate < 1e6 {
+		return fmt.Sprintf("%.1f kB/s", float64(rate)/1e3)
+	} else {
+		return fmt.Sprintf("%.1f MB/s", float64(rate)/1e6)
+	}
 }
 
 func getSha256Sum(sumsFn string, entryPath string) (string, error) {

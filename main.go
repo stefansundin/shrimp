@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -78,12 +79,13 @@ func main() {
 	var rate int64
 	if bwlimit != "" {
 		var err error
-		rate, err = parseLimit(bwlimit)
+		rate, err = parseRate(bwlimit)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 	}
+	initialRate := rate
 
 	// Check if we can read from the file
 	if err := unix.Access(file, unix.R_OK); err != nil {
@@ -245,8 +247,13 @@ func main() {
 		}
 	}
 
-	// Trap Ctrl-C signal
+	// Control variables
+	var oldRate int64
 	interrupted := false
+	paused := false
+	waitingToUnpause := false
+
+	// Trap Ctrl-C signal
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt)
 	go func() {
@@ -254,19 +261,58 @@ func main() {
 			if sig != os.Interrupt {
 				continue
 			}
+			if waitingToUnpause {
+				os.Exit(1)
+			}
 			if interrupted {
 				os.Exit(1)
 			}
 			interrupted = true
-			fmt.Println("\nInterrupt received, finishing current part. Press Ctrl-C again to exit immediately.")
+			fmt.Println("\nInterrupt received, finishing current part. Press Ctrl-C again to exit immediately. Press the space key to cancel exit.")
 		}
 	}()
 
+	// Attempt to configure the terminal so that single characters can be read from stdin
+	stdinFd := os.Stdin.Fd()
+	oldState, err := configureTerminal(stdinFd)
+	if err == nil {
+		defer func() {
+			restoreTerminal(stdinFd, oldState)
+		}()
+	} else {
+		fmt.Fprintln(os.Stderr, "Warning: could not configure terminal. You have to use the enter key after each keyboard input.")
+		fmt.Fprintln(os.Stderr, err)
+	}
+	// Send characters from stdin to a channel
+	stdinInput := make(chan rune, 1)
+	go func() {
+		stdinReader := bufio.NewReader(os.Stdin)
+		for {
+			char, _, err := stdinReader.ReadRune()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
+			stdinInput <- char
+		}
+	}()
+
+	fmt.Println("Tip: Press ? to see the available keyboard controls.")
+
 	needMoreParts := (offset < fileSize)
 	for needMoreParts {
+		for paused {
+			waitingToUnpause = true
+			fmt.Println("Transfer is paused. Press the space key to resume.")
+			r := <-stdinInput
+			if r == ' ' {
+				fmt.Println("Resuming...")
+				paused = false
+				waitingToUnpause = false
+			}
+		}
+
 		partNumber += 1
 		partStartTime := time.Now()
-
 		partSize := min(chunksize, fileSize-offset)
 		partData := make([]byte, partSize)
 		n, err := f.ReadAt(partData, offset)
@@ -297,15 +343,121 @@ func main() {
 			}
 		}()
 
-		// Print status updates while the upload is in progress
+		// Main loop while the upload is in progress
 		for doneCh != nil {
 			select {
 			case <-doneCh:
 				doneCh = nil
 			case <-time.After(time.Second):
-				s := reader.Status()
-				fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %d b/s, %s remaining (total: %s, %s remaining)", partNumber, len(partData), s.Progress, s.CurRate, s.TimeRem, s.TotalProgress, s.TotalTimeRem)
+			case r := <-stdinInput:
+				if r == 'u' {
+					rate = 0
+					reader.SetLimit(rate)
+					fmt.Printf("\nUnlimited transfer rate.\n")
+				} else if r == 'r' {
+					rate = initialRate
+					reader.SetLimit(rate)
+					if rate == 0 {
+						fmt.Printf("\nUnlimited transfer rate.")
+					} else {
+						fmt.Printf("\nTransfer rate set to: %s.", formatRate(rate))
+					}
+				} else if r == 'a' || r == 's' || r == 'd' || r == 'f' ||
+					r == 'z' || r == 'x' || r == 'c' || r == 'v' {
+					if rate <= 1e3 && r != 'a' {
+						rate = 0
+					}
+					if r == 'a' {
+						rate += 1e3
+					} else if r == 's' {
+						rate += 10e3
+					} else if r == 'd' {
+						rate += 100e3
+					} else if r == 'f' {
+						rate += 250e3
+					} else if r == 'z' {
+						rate -= 1e3
+					} else if r == 'x' {
+						rate -= 10e3
+					} else if r == 'c' {
+						rate -= 100e3
+					} else if r == 'v' {
+						rate -= 250e3
+					}
+					if rate < 1e3 {
+						rate = 1e3
+					}
+					reader.SetLimit(rate)
+					fmt.Printf("\nTransfer rate set to: %s\n", formatRate(rate))
+				} else if r >= '0' && r <= '9' {
+					n := int64(r - '0')
+					if n == 0 {
+						rate = 1e6
+					} else {
+						rate = n * 100e3
+					}
+					reader.SetLimit(rate)
+					fmt.Printf("\nTransfer rate set to: %s\n", formatRate(rate))
+				} else if r == 'p' {
+					// Pause after current part
+					paused = !paused
+					if paused {
+						fmt.Println("\nTransfer will pause after the current part.")
+					} else {
+						fmt.Println("\nWill not pause.")
+					}
+				} else if r == ' ' {
+					// Pausing with the space key just lowers the rate to be very low
+					// Unpausing restores the previous rate
+					if interrupted {
+						interrupted = false
+						fmt.Println("\nExit cancelled.")
+					} else {
+						paused = !paused
+						if paused {
+							oldRate = rate
+							rate = 1e3
+						} else {
+							rate = oldRate
+						}
+						reader.SetLimit(rate)
+						if rate == 0 {
+							fmt.Printf("\nUnlimited transfer rate.")
+						} else {
+							fmt.Printf("\nTransfer rate set to: %s.", formatRate(rate))
+						}
+						if paused {
+							fmt.Print(" Transfer will pause after the current part.")
+						}
+						fmt.Println()
+					}
+				} else if r == '?' {
+					fmt.Println()
+					fmt.Println()
+					fmt.Println("u       - set to unlimited transfer rate")
+					fmt.Println("r       - restore initial transfer rate (from --bwlimit)")
+					fmt.Println("a s d f - increase transfer rate by 1, 10, 100, or 250 kB/s")
+					fmt.Println("z x c v - decrease transfer rate by 1, 10, 100, or 250 kB/s")
+					fmt.Println("0-9     - set the transfer rate to 0.X MB/s")
+					fmt.Println("p       - pause transfer after current part")
+					fmt.Println("[space] - pause transfer (decreases transfer rate to 1 kB/s)")
+					fmt.Println("Ctrl-C  - exit after current part")
+					fmt.Println("          press twice to abort immediately")
+					fmt.Println()
+				} else if r == '\n' {
+					fmt.Println()
+				} else {
+					fmt.Printf("\ninput: %+v\n", r)
+				}
 			}
+
+			var targetRate string
+			if rate != 0 {
+				targetRate = fmt.Sprintf(" (target: %s)", formatRate(rate))
+			}
+
+			s := reader.Status()
+			fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %s%s, %s remaining (total: %s, %s remaining)", partNumber, len(partData), s.Progress, formatRate(s.CurRate), targetRate, s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 		}
 
 		fmt.Printf("\033[2K\rUploaded part %d (%d bytes) in %s.\n", partNumber, len(partData), time.Since(partStartTime).Round(time.Second))
@@ -313,7 +465,7 @@ func main() {
 		// Check if the user wants to stop
 		if interrupted {
 			fmt.Println("Exited early.")
-			os.Exit(0)
+			os.Exit(1)
 		}
 
 		parts = append(parts, s3Types.CompletedPart{
