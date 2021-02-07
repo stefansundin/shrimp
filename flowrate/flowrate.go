@@ -154,6 +154,46 @@ func (m *Monitor) Status() Status {
 	return s
 }
 
+// Status returns transfer status information based on variable bytes
+// and tBytes values.
+func (m *Monitor) StatusTotal(bytes int64, tBytes int64) Status {
+	m.mu.Lock()
+	now := m.update(0)
+	s := Status{
+		Active:   m.active,
+		Start:    clockToTime(m.start),
+		Duration: m.sLast - m.start,
+		Idle:     now - m.tLast,
+		Bytes:    bytes,
+		Samples:  m.samples,
+		PeakRate: round(m.rPeak),
+		BytesRem: tBytes - bytes,
+		Progress: percentOf(float64(bytes), float64(tBytes)),
+	}
+	if s.BytesRem < 0 {
+		s.BytesRem = 0
+	}
+	if s.Duration > 0 {
+		rAvg := float64(s.Bytes) / s.Duration.Seconds()
+		s.AvgRate = round(rAvg)
+		if s.Active {
+			s.InstRate = round(m.rSample)
+			s.CurRate = round(m.rEMA)
+			if s.BytesRem > 0 {
+				if tRate := 0.8*m.rEMA + 0.2*rAvg; tRate > 0 {
+					ns := float64(s.BytesRem) / tRate * 1e9
+					if ns > float64(timeRemLimit) {
+						ns = float64(timeRemLimit)
+					}
+					s.TimeRem = clockRound(time.Duration(ns))
+				}
+			}
+		}
+	}
+	m.mu.Unlock()
+	return s
+}
+
 // Limit restricts the instantaneous (per-sample) data flow to rate bytes per
 // second. It returns the maximum number of bytes (0 <= n <= want) that may be
 // transferred immediately without exceeding the limit. If block == true, the
