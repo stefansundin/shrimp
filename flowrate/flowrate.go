@@ -112,6 +112,11 @@ type Status struct {
 	BytesRem int64         // Number of bytes remaining in the transfer
 	TimeRem  time.Duration // Estimated time to completion
 	Progress Percent       // Overall transfer progress
+
+	TotalBytes    int64         // Total number of bytes transferred
+	TotalBytesRem int64         // Number of bytes remaining in the transfer
+	TotalTimeRem  time.Duration // Estimated time to completion
+	TotalProgress Percent       // Overall transfer progress
 }
 
 // Status returns current transfer status information. The returned value
@@ -156,7 +161,7 @@ func (m *Monitor) Status() Status {
 
 // Status returns transfer status information based on variable bytes
 // and tBytes values.
-func (m *Monitor) StatusTotal(bytes int64, tBytes int64) Status {
+func (m *Monitor) StatusTotal(prevBytes int64, totalBytes int64) Status {
 	m.mu.Lock()
 	now := m.update(0)
 	s := Status{
@@ -164,11 +169,15 @@ func (m *Monitor) StatusTotal(bytes int64, tBytes int64) Status {
 		Start:    clockToTime(m.start),
 		Duration: m.sLast - m.start,
 		Idle:     now - m.tLast,
-		Bytes:    bytes,
+		Bytes:    m.bytes,
 		Samples:  m.samples,
 		PeakRate: round(m.rPeak),
-		BytesRem: tBytes - bytes,
-		Progress: percentOf(float64(bytes), float64(tBytes)),
+		BytesRem: m.tBytes - m.bytes,
+		Progress: percentOf(float64(m.bytes), float64(m.tBytes)),
+
+		TotalBytes:    prevBytes + m.bytes,
+		TotalBytesRem: totalBytes - prevBytes - m.bytes,
+		TotalProgress: percentOf(float64(prevBytes+m.bytes), float64(totalBytes)),
 	}
 	if s.BytesRem < 0 {
 		s.BytesRem = 0
@@ -186,6 +195,15 @@ func (m *Monitor) StatusTotal(bytes int64, tBytes int64) Status {
 						ns = float64(timeRemLimit)
 					}
 					s.TimeRem = clockRound(time.Duration(ns))
+				}
+			}
+			if s.TotalBytesRem > 0 {
+				if tRate := 0.8*m.rEMA + 0.2*rAvg; tRate > 0 {
+					ns := float64(s.TotalBytesRem) / tRate * 1e9
+					if ns > float64(timeRemLimit) {
+						ns = float64(timeRemLimit)
+					}
+					s.TotalTimeRem = clockRound(time.Duration(ns))
 				}
 			}
 		}

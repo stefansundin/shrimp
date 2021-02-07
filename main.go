@@ -302,9 +302,8 @@ func main() {
 			case <-doneCh:
 				doneCh = nil
 			case <-time.After(time.Second):
-				s := reader.Status()
-				sTotal := reader.StatusTotal(offset+s.Bytes, fileSize)
-				fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %d b/s, %s remaining (total: %s, %s remaining)", partNumber, len(partData), s.Progress, s.CurRate, s.TimeRem, sTotal.Progress, sTotal.TimeRem)
+				s := reader.StatusTotal(offset, fileSize)
+				fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %d b/s, %s remaining (total: %s, %s remaining)", partNumber, len(partData), s.Progress, s.CurRate, s.TimeRem, s.TotalProgress, s.TotalTimeRem)
 			}
 		}
 
