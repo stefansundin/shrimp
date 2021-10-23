@@ -256,10 +256,6 @@ func main() {
 					ETag:       part.ETag,
 				})
 			}
-			// https://github.com/aws/aws-sdk-go-v2/pull/1100
-			if !page.IsTruncated {
-				break
-			}
 		}
 
 		localLocation, err := time.LoadLocation("Local")
