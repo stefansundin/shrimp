@@ -106,16 +106,16 @@ func main() {
 	// The minimum part size is 5 MiB (except for the last part), although shrimp starts at 8 MiB (like the aws cli).
 	// The maximum part size is 5 GiB, which would in theory allow 50000 GiB (~48.8 TiB) in 10,000 parts.
 	// The aws cli follows a very similar algorithm: https://github.com/boto/s3transfer/blob/0.5.0/s3transfer/utils.py#L711-L763
-	var partSize int64 = 8 * 1024 * 1024
+	var partSize int64 = 8 * MiB
 	for 10000*partSize < fileSize {
 		partSize *= 2
 	}
-	if partSize > 5*1024*1024*1024 {
-		partSize = 5 * 1024 * 1024 * 1024
+	if partSize > 5*GiB {
+		partSize = 5 * GiB
 	}
 	fmt.Printf("Part size: %s\n", formatFilesize((partSize)))
 	fmt.Printf("The upload will consist of %d parts.\n", int64(math.Ceil(float64(fileSize)/float64(partSize))))
-	if fileSize > 5*1024*1024*1024*1024 {
+	if fileSize > 5*TiB {
 		fmt.Println("Warning: File size is greater than 5 TiB. At the time of writing 5 TiB is the maximum object size.")
 		fmt.Println("This program is not stopping you from proceeding in case the limit has been increased, but be warned!")
 	}

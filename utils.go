@@ -14,6 +14,11 @@ import (
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+const kiB int64 = 1024
+const MiB int64 = 1024 * kiB
+const GiB int64 = 1024 * MiB
+const TiB int64 = 1024 * GiB
+
 func min(a, b int64) int64 {
 	if a > b {
 		return b
@@ -60,16 +65,16 @@ func formatSize(size int64) string {
 // The S3 docs state GB and TB but they actually mean GiB and TiB
 // For consistency, format filesizes in GiB and TiB
 func formatFilesize(size int64) string {
-	if size < 1024 {
+	if size < kiB {
 		return fmt.Sprintf("%d B", size)
-	} else if size < int64(math.Pow(2, 20)) {
-		return fmt.Sprintf("%.1f kiB (%d bytes)", float64(size)/math.Pow(2, 10), size)
-	} else if size < int64(math.Pow(2, 30)) {
-		return fmt.Sprintf("%.1f MiB (%d bytes)", float64(size)/math.Pow(2, 20), size)
-	} else if size < int64(math.Pow(2, 40)) {
-		return fmt.Sprintf("%.1f GiB (%d bytes)", float64(size)/math.Pow(2, 30), size)
+	} else if size < MiB {
+		return fmt.Sprintf("%.1f kiB (%d bytes)", float64(size)/float64(kiB), size)
+	} else if size < GiB {
+		return fmt.Sprintf("%.1f MiB (%d bytes)", float64(size)/float64(MiB), size)
+	} else if size < TiB {
+		return fmt.Sprintf("%.1f GiB (%d bytes)", float64(size)/float64(GiB), size)
 	} else {
-		return fmt.Sprintf("%.1f TiB (%d bytes)", float64(size)/math.Pow(2, 40), size)
+		return fmt.Sprintf("%.1f TiB (%d bytes)", float64(size)/float64(TiB), size)
 	}
 }
 
