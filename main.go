@@ -207,6 +207,12 @@ func main() {
 			os.Exit(1)
 		}
 		uploadId = *upload.UploadId
+
+		if createMultipartUploadInput.StorageClass != "" &&
+			upload.StorageClass != createMultipartUploadInput.StorageClass {
+			fmt.Printf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove --storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
+			os.Exit(1)
+		}
 	}
 
 	// Create the multipart upload or get the part information from an existing upload
