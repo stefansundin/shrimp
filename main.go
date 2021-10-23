@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"os/signal"
 	"time"
@@ -22,9 +23,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
-
-// Each part must be at least 5 MiB in size (except the last part).
-var chunksize int64 = 5 * 1024 * 1024
 
 func init() {
 	// Do not fail if a region is not specified anywhere
@@ -101,7 +99,29 @@ func main() {
 		os.Exit(1)
 	}
 	fileSize := stat.Size()
-	fmt.Printf("File size: %d bytes\n", fileSize)
+	fmt.Printf("File size: %s\n", formatFilesize(fileSize))
+
+	// Detect best part size
+	// Double the part size until the file fits in 10,000 parts.
+	// The minimum part size is 5 MiB (except for the last part), although shrimp starts at 8 MiB (like the aws cli).
+	// The maximum part size is 5 GiB, which would in theory allow 50000 GiB (~48.8 TiB) in 10,000 parts.
+	// The aws cli follows a very similar algorithm: https://github.com/boto/s3transfer/blob/0.5.0/s3transfer/utils.py#L711-L763
+	var partSize int64 = 8 * 1024 * 1024
+	for 10000*partSize < fileSize {
+		partSize *= 2
+	}
+	if partSize > 5*1024*1024*1024 {
+		partSize = 5 * 1024 * 1024 * 1024
+	}
+	fmt.Printf("Part size: %s\n", formatFilesize((partSize)))
+	fmt.Printf("The upload will consist of %d parts.\n", int64(math.Ceil(float64(fileSize)/float64(partSize))))
+	if fileSize > 5*1024*1024*1024*1024 {
+		fmt.Println("Warning: File size is greater than 5 TiB. At the time of writing 5 TiB is the maximum object size.")
+		fmt.Println("This program is not stopping you from proceeding in case the limit has been increased, but be warned!")
+	}
+	if 10000*partSize < fileSize {
+		fmt.Println("Warning: File size is too large to be transferred in 10,000 parts!")
+	}
 
 	// Open the file
 	f, _ := os.Open(file)
@@ -298,8 +318,7 @@ func main() {
 
 	fmt.Println("Tip: Press ? to see the available keyboard controls.")
 
-	needMoreParts := (offset < fileSize)
-	for needMoreParts {
+	for offset < fileSize {
 		for paused {
 			waitingToUnpause = true
 			fmt.Println("Transfer is paused. Press the space key to resume.")
@@ -313,8 +332,7 @@ func main() {
 
 		partNumber += 1
 		partStartTime := time.Now()
-		partSize := min(chunksize, fileSize-offset)
-		partData := make([]byte, partSize)
+		partData := make([]byte, min(partSize, fileSize-offset))
 		n, err := f.ReadAt(partData, offset)
 		if err != nil && err != io.EOF {
 			fmt.Fprintln(os.Stderr, err)
@@ -322,7 +340,7 @@ func main() {
 		}
 
 		reader := flowrate.NewReader(bytes.NewReader(partData), rate)
-		reader.SetTransferSize(partSize)
+		reader.SetTransferSize(int64(len(partData)))
 		reader.SetTotal(offset, fileSize)
 
 		// Start the upload in a go routine
@@ -360,7 +378,7 @@ func main() {
 					if rate == 0 {
 						fmt.Printf("\nUnlimited transfer rate.")
 					} else {
-						fmt.Printf("\nTransfer rate set to: %s.", formatRate(rate))
+						fmt.Printf("\nTransfer rate set to: %s/s.", formatSize(rate))
 					}
 				} else if r == 'a' || r == 's' || r == 'd' || r == 'f' ||
 					r == 'z' || r == 'x' || r == 'c' || r == 'v' {
@@ -388,7 +406,7 @@ func main() {
 						rate = 1e3
 					}
 					reader.SetLimit(rate)
-					fmt.Printf("\nTransfer rate set to: %s\n", formatRate(rate))
+					fmt.Printf("\nTransfer rate set to: %s/s\n", formatSize(rate))
 				} else if r >= '0' && r <= '9' {
 					n := int64(r - '0')
 					if n == 0 {
@@ -397,7 +415,7 @@ func main() {
 						rate = n * 100e3
 					}
 					reader.SetLimit(rate)
-					fmt.Printf("\nTransfer rate set to: %s\n", formatRate(rate))
+					fmt.Printf("\nTransfer rate set to: %s/s\n", formatSize(rate))
 				} else if r == 'p' {
 					// Pause after current part
 					paused = !paused
@@ -424,7 +442,7 @@ func main() {
 						if rate == 0 {
 							fmt.Printf("\nUnlimited transfer rate.")
 						} else {
-							fmt.Printf("\nTransfer rate set to: %s.", formatRate(rate))
+							fmt.Printf("\nTransfer rate set to: %s/s.", formatSize(rate))
 						}
 						if paused {
 							fmt.Print(" Transfer will pause after the current part.")
@@ -453,11 +471,11 @@ func main() {
 
 			var targetRate string
 			if rate != 0 {
-				targetRate = fmt.Sprintf(" (target: %s)", formatRate(rate))
+				targetRate = fmt.Sprintf(" (target: %s/s)", formatSize(rate))
 			}
 
 			s := reader.Status()
-			fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %s%s, %s remaining (total: %s, %s remaining)", partNumber, len(partData), s.Progress, formatRate(s.CurRate), targetRate, s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
+			fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %s/s%s, %s remaining (total: %s, %s remaining)", partNumber, len(partData), s.Progress, formatSize(s.CurRate), targetRate, s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 		}
 
 		fmt.Printf("\033[2K\rUploaded part %d (%d bytes) in %s.\n", partNumber, len(partData), time.Since(partStartTime).Round(time.Second))
@@ -473,7 +491,6 @@ func main() {
 			PartNumber: partNumber,
 		})
 		offset += int64(n)
-		needMoreParts = (offset < fileSize)
 	}
 	signal.Reset(os.Interrupt)
 

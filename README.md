@@ -5,6 +5,5 @@ The primary purpose of this tool is to be more convenient than the official aws 
 Current status: **under development**. Please do not use it for important files just yet. Please report bugs.
 
 TODO:
-- Auto-detect best chunk size.
 - Make flags compatible with the aws cli.
 - Detect upload with gaps.

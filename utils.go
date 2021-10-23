@@ -43,13 +43,33 @@ func parseRate(s string) (int64, error) {
 	return int64(math.Round(f * float64(factor))), nil
 }
 
-func formatRate(rate int64) string {
-	if rate < 1e3 {
-		return fmt.Sprintf("%d B/s", rate)
-	} else if rate < 1e6 {
-		return fmt.Sprintf("%.1f kB/s", float64(rate)/1e3)
+func formatSize(size int64) string {
+	if size < 1e3 {
+		return fmt.Sprintf("%d B", size)
+	} else if size < 1e6 {
+		return fmt.Sprintf("%.1f kB", float64(size)/1e3)
+	} else if size < 1e9 {
+		return fmt.Sprintf("%.1f MB", float64(size)/1e6)
+	} else if size < 1e12 {
+		return fmt.Sprintf("%.1f GB", float64(size)/1e9)
 	} else {
-		return fmt.Sprintf("%.1f MB/s", float64(rate)/1e6)
+		return fmt.Sprintf("%.1f TB", float64(size)/1e12)
+	}
+}
+
+// The S3 docs state GB and TB but they actually mean GiB and TiB
+// For consistency, format filesizes in GiB and TiB
+func formatFilesize(size int64) string {
+	if size < 1024 {
+		return fmt.Sprintf("%d B", size)
+	} else if size < int64(math.Pow(2, 20)) {
+		return fmt.Sprintf("%.1f kiB (%d bytes)", float64(size)/math.Pow(2, 10), size)
+	} else if size < int64(math.Pow(2, 30)) {
+		return fmt.Sprintf("%.1f MiB (%d bytes)", float64(size)/math.Pow(2, 20), size)
+	} else if size < int64(math.Pow(2, 40)) {
+		return fmt.Sprintf("%.1f GiB (%d bytes)", float64(size)/math.Pow(2, 30), size)
+	} else {
+		return fmt.Sprintf("%.1f TiB (%d bytes)", float64(size)/math.Pow(2, 40), size)
 	}
 }
 
