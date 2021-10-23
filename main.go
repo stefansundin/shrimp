@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"sort"
 	"time"
 
 	"github.com/stefansundin/shrimp/flowrate"
@@ -260,6 +261,19 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("Continuing upload from %v. %d parts already uploaded (%d bytes).\n", lastModified.In(localLocation), len(parts), offset)
+
+		// Check if there are any gaps in the existing parts
+		partNumbers := make([]int, len(parts))
+		for i, part := range parts {
+			partNumbers[i] = int(part.PartNumber)
+		}
+		sort.Ints(partNumbers)
+		for i, partNumber := range partNumbers {
+			if partNumber != i+1 {
+				fmt.Fprintf(os.Stderr, "Error: existing parts are not contiguous (part %d is missing). Can not handle this case yet.\n", i+1)
+				os.Exit(1)
+			}
+		}
 
 		if offset > fileSize {
 			fmt.Println("Error: size of parts already uploaded is greater than local file size.")

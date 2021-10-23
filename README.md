@@ -6,4 +6,3 @@ Current status: **under development**. Please do not use it for important files 
 
 TODO:
 - Make flags compatible with the aws cli.
-- Detect upload with gaps.
