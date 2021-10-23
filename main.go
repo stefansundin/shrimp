@@ -114,7 +114,7 @@ func main() {
 	if partSize > 5*GiB {
 		partSize = 5 * GiB
 	}
-	fmt.Printf("Part size: %s\n", formatFilesize((partSize)))
+	fmt.Printf("Part size: %s\n", formatFilesize(partSize))
 	fmt.Printf("The upload will consist of %d parts.\n", int64(math.Ceil(float64(fileSize)/float64(partSize))))
 	if fileSize > 5*TiB {
 		fmt.Println("Warning: File size is greater than 5 TiB. At the time of writing 5 TiB is the maximum object size.")
@@ -185,7 +185,7 @@ func main() {
 	}
 
 	// Check if we should resume an upload
-	fmt.Println("Checking if this upload is already in progress...")
+	fmt.Println("Checking if this upload is already in progress.")
 	var uploadId string
 	// TODO: Switch this to a paginator when aws-sdk-go-v2 supports it?
 	outputListMultipartUploads, err := client.ListMultipartUploads(context.TODO(), &s3.ListMultipartUploadsInput{
@@ -203,10 +203,18 @@ func main() {
 
 		// fmt.Printf("Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
 		if uploadId != "" {
-			fmt.Println("Error: more than one previous upload is in progress. Please abort duplicated in-progress uploads manually.")
+			fmt.Println("Error: more than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
 			os.Exit(1)
 		}
 		uploadId = *upload.UploadId
+		fmt.Printf("Found an upload in progress with upload id: %s\n", uploadId)
+
+		localLocation, err := time.LoadLocation("Local")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Printf("Upload started at %v.\n", upload.Initiated.In(localLocation))
 
 		if createMultipartUploadInput.StorageClass != "" &&
 			upload.StorageClass != createMultipartUploadInput.StorageClass {
@@ -230,9 +238,6 @@ func main() {
 		uploadId = *outputCreateMultipartUpload.UploadId
 		fmt.Printf("Upload id: %v\n", uploadId)
 	} else {
-		fmt.Printf("Found an existing upload in progress with upload id: %v\n", uploadId)
-
-		var lastModified time.Time
 		paginatorListParts := s3.NewListPartsPaginator(client, &s3.ListPartsInput{
 			Bucket:   aws.String(bucket),
 			Key:      aws.String(key),
@@ -247,9 +252,6 @@ func main() {
 			partNumber += int32(len(page.Parts))
 			for _, part := range page.Parts {
 				// fmt.Printf("Part: {Size: %d, PartNumber: %d, LastModified: %s, ETag: %s}\n", part.Size, part.PartNumber, part.LastModified, *part.ETag)
-				if (*part.LastModified).After(lastModified) {
-					lastModified = *part.LastModified
-				}
 				offset += part.Size
 				parts = append(parts, s3Types.CompletedPart{
 					PartNumber: part.PartNumber,
@@ -257,13 +259,7 @@ func main() {
 				})
 			}
 		}
-
-		localLocation, err := time.LoadLocation("Local")
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		fmt.Printf("Continuing upload from %v. %s already uploaded in %d parts.\n", lastModified.In(localLocation), formatFilesize(offset), len(parts))
+		fmt.Printf("%s already uploaded in %d parts.\n", formatFilesize(offset), len(parts))
 
 		// Check if there are any gaps in the existing parts
 		partNumbers := make([]int, len(parts))
@@ -342,7 +338,7 @@ func main() {
 			fmt.Println("Transfer is paused. Press the space key to resume.")
 			r := <-stdinInput
 			if r == ' ' {
-				fmt.Println("Resuming...")
+				fmt.Println("Resuming.")
 				paused = false
 				waitingToUnpause = false
 			}
@@ -392,7 +388,7 @@ func main() {
 					if rate == 0 {
 						fmt.Printf("\nUnlimited transfer rate.")
 					} else {
-						fmt.Printf("\nTransfer rate set to: %s/s.", formatSize(rate))
+						fmt.Printf("\nTransfer limit set to: %s/s.", formatSize(rate))
 					}
 				} else if r == 'a' || r == 's' || r == 'd' || r == 'f' ||
 					r == 'z' || r == 'x' || r == 'c' || r == 'v' {
@@ -420,7 +416,7 @@ func main() {
 						rate = 1e3
 					}
 					reader.SetLimit(rate)
-					fmt.Printf("\nTransfer rate set to: %s/s\n", formatSize(rate))
+					fmt.Printf("\nTransfer limit set to: %s/s\n", formatSize(rate))
 				} else if r >= '0' && r <= '9' {
 					n := int64(r - '0')
 					if n == 0 {
@@ -429,7 +425,7 @@ func main() {
 						rate = n * 100e3
 					}
 					reader.SetLimit(rate)
-					fmt.Printf("\nTransfer rate set to: %s/s\n", formatSize(rate))
+					fmt.Printf("\nTransfer limit set to: %s/s\n", formatSize(rate))
 				} else if r == 'p' {
 					// Pause after current part
 					paused = !paused
@@ -440,7 +436,7 @@ func main() {
 					}
 				} else if r == ' ' {
 					// Pausing with the space key just lowers the rate to be very low
-					// Unpausing restores the previous rate
+					// Unpausing restores the old rate
 					if interrupted {
 						interrupted = false
 						fmt.Println("\nExit cancelled.")
@@ -456,7 +452,7 @@ func main() {
 						if rate == 0 {
 							fmt.Printf("\nUnlimited transfer rate.")
 						} else {
-							fmt.Printf("\nTransfer rate set to: %s/s.", formatSize(rate))
+							fmt.Printf("\nTransfer limit set to: %s/s.", formatSize(rate))
 						}
 						if paused {
 							fmt.Print(" Transfer will pause after the current part.")
@@ -467,12 +463,12 @@ func main() {
 					fmt.Println()
 					fmt.Println()
 					fmt.Println("u       - set to unlimited transfer rate")
-					fmt.Println("r       - restore initial transfer rate (from --bwlimit)")
-					fmt.Println("a s d f - increase transfer rate by 1, 10, 100, or 250 kB/s")
-					fmt.Println("z x c v - decrease transfer rate by 1, 10, 100, or 250 kB/s")
-					fmt.Println("0-9     - set the transfer rate to 0.X MB/s")
+					fmt.Println("r       - restore initial transfer limit (from --bwlimit)")
+					fmt.Println("a s d f - increase transfer limit by 1, 10, 100, or 250 kB/s")
+					fmt.Println("z x c v - decrease transfer limit by 1, 10, 100, or 250 kB/s")
+					fmt.Println("0-9     - limit the transfer rate to 0.X MB/s")
 					fmt.Println("p       - pause transfer after current part")
-					fmt.Println("[space] - pause transfer (decreases transfer rate to 1 kB/s)")
+					fmt.Println("[space] - pause transfer (sets transfer limit to 1 kB/s)")
 					fmt.Println("Ctrl-C  - exit after current part")
 					fmt.Println("          press twice to abort immediately")
 					fmt.Println()
@@ -527,6 +523,7 @@ func main() {
 	}
 
 	// Complete the upload
+	fmt.Println("Completing the multipart upload.")
 	_, err = client.CompleteMultipartUpload(context.TODO(), &s3.CompleteMultipartUploadInput{
 		Bucket:   aws.String(bucket),
 		Key:      aws.String(key),
