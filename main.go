@@ -123,6 +123,7 @@ func main() {
 	if 10000*partSize < fileSize {
 		fmt.Println("Warning: File size is too large to be transferred in 10,000 parts!")
 	}
+	fmt.Println()
 
 	// Open the file
 	f, _ := os.Open(file)
@@ -200,7 +201,7 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("Upload: %+v\n", upload)
+		// fmt.Printf("Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
 		if uploadId != "" {
 			fmt.Println("Error: more than one previous upload is in progress. Please abort duplicated in-progress uploads manually.")
 			os.Exit(1)
@@ -239,7 +240,7 @@ func main() {
 			}
 			partNumber += int32(len(page.Parts))
 			for _, part := range page.Parts {
-				fmt.Printf("Part: %+v\n", part)
+				// fmt.Printf("Part: {Size: %d, PartNumber: %d, LastModified: %s, ETag: %s}\n", part.Size, part.PartNumber, part.LastModified, *part.ETag)
 				if (*part.LastModified).After(lastModified) {
 					lastModified = *part.LastModified
 				}
@@ -260,7 +261,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		fmt.Printf("Continuing upload from %v. %d parts already uploaded (%d bytes).\n", lastModified.In(localLocation), len(parts), offset)
+		fmt.Printf("Continuing upload from %v. %s already uploaded in %d parts.\n", lastModified.In(localLocation), formatFilesize(offset), len(parts))
 
 		// Check if there are any gaps in the existing parts
 		partNumbers := make([]int, len(parts))
@@ -330,6 +331,7 @@ func main() {
 		}
 	}()
 
+	fmt.Println()
 	fmt.Println("Tip: Press ? to see the available keyboard controls.")
 
 	for offset < fileSize {
@@ -478,8 +480,6 @@ func main() {
 					fmt.Println()
 				} else if r == '\n' {
 					fmt.Println()
-				} else {
-					fmt.Printf("\ninput: %+v\n", r)
 				}
 			}
 
@@ -489,10 +489,10 @@ func main() {
 			}
 
 			s := reader.Status()
-			fmt.Printf("\033[2K\rUploading part %d (%d bytes).. %s, %s/s%s, %s remaining (total: %s, %s remaining)", partNumber, len(partData), s.Progress, formatSize(s.CurRate), targetRate, s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
+			fmt.Printf("\033[2K\rUploading part %d: %s, %s/s%s, %s remaining. (total: %s, %s remaining)", partNumber, s.Progress, formatSize(s.CurRate), targetRate, s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 		}
 
-		fmt.Printf("\033[2K\rUploaded part %d (%d bytes) in %s.\n", partNumber, len(partData), time.Since(partStartTime).Round(time.Second))
+		fmt.Printf("\033[2K\rUploaded part %d in %s.\n", partNumber, time.Since(partStartTime).Round(time.Second))
 
 		// Check if the user wants to stop
 		if interrupted {
