@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/aws/aws-sdk-go-v2 v1.10.0
 	github.com/aws/aws-sdk-go-v2/config v1.9.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.16.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.17.0
 	github.com/pkg/term v1.1.0
 	golang.org/x/sys v0.0.0-20211025201205-69cdffdb9359
 )
