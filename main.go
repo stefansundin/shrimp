@@ -217,7 +217,7 @@ func main() {
 
 	// Create the multipart upload or get the part information from an existing upload
 	parts := []s3Types.CompletedPart{}
-	var partNumber int32
+	var partNumber int32 = 1
 	var offset int64
 	if uploadId == "" {
 		fmt.Println("Creating multipart upload.")
@@ -348,7 +348,6 @@ func main() {
 			}
 		}
 
-		partNumber += 1
 		partStartTime := time.Now()
 		partData := make([]byte, min(partSize, fileSize-offset))
 		n, err := f.ReadAt(partData, offset)
@@ -363,20 +362,17 @@ func main() {
 
 		// Start the upload in a go routine
 		doneCh := make(chan struct{})
-		var outputUploadPart *s3.UploadPartOutput
+		var uploadErr error
+		var uploadPart *s3.UploadPartOutput
 		go func() {
 			defer close(doneCh)
-			outputUploadPart, err = client.UploadPart(context.TODO(), &s3.UploadPartInput{
+			uploadPart, uploadErr = client.UploadPart(context.TODO(), &s3.UploadPartInput{
 				Bucket:     aws.String(bucket),
 				Key:        aws.String(key),
 				UploadId:   aws.String(uploadId),
 				PartNumber: partNumber,
 				Body:       reader,
 			})
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
 		}()
 
 		// Main loop while the upload is in progress
@@ -487,26 +483,40 @@ func main() {
 
 			var targetRate string
 			if rate != 0 {
-				targetRate = fmt.Sprintf(" (target: %s/s)", formatSize(rate))
+				targetRate = fmt.Sprintf(" (limit: %s/s)", formatSize(rate))
 			}
 
 			s := reader.Status()
 			fmt.Printf("\033[2K\rUploading part %d: %s, %s/s%s, %s remaining. (total: %s, %s remaining)", partNumber, s.Progress, formatSize(s.CurRate), targetRate, s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 		}
 
-		fmt.Printf("\033[2K\rUploaded part %d in %s.\n", partNumber, time.Since(partStartTime).Round(time.Second))
+		// Part upload has completed or failed
+		if uploadErr == nil {
+			fmt.Printf("\033[2K\rUploaded part %d in %s.\n", partNumber, time.Since(partStartTime).Round(time.Second))
 
-		// Check if the user wants to stop
-		if interrupted {
-			fmt.Println("Exited early.")
-			os.Exit(1)
+			// Check if the user wants to stop
+			if interrupted {
+				fmt.Println("Exited early.")
+				os.Exit(1)
+			}
+
+			parts = append(parts, s3Types.CompletedPart{
+				ETag:       uploadPart.ETag,
+				PartNumber: partNumber,
+			})
+			offset += int64(n)
+			partNumber += 1
+		} else {
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintf(os.Stderr, "Error uploading part %d: %v\n", partNumber, uploadErr)
+			if interrupted {
+				os.Exit(1)
+			}
+			fmt.Fprintln(os.Stderr, "Waiting 10 seconds and then retrying.")
+			fmt.Fprintln(os.Stderr)
+			time.Sleep(10 * time.Second)
 		}
-
-		parts = append(parts, s3Types.CompletedPart{
-			ETag:       outputUploadPart.ETag,
-			PartNumber: partNumber,
-		})
-		offset += int64(n)
 	}
 	signal.Reset(os.Interrupt)
 
