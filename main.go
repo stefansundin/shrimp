@@ -35,16 +35,29 @@ func init() {
 
 func main() {
 	// TODO: Make the flags consistent with the aws cli
-	var profile, bucket, key, file, bwlimit, contentType, storageClass string
+	var profile, bucket, key, file, bwlimit, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
 	var version bool
-	flag.StringVar(&profile, "profile", "default", "The profile to use.")
+	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
 	flag.StringVar(&bucket, "bucket", "", "Bucket name.")
 	flag.StringVar(&key, "key", "", "Destination object key name.")
 	flag.StringVar(&file, "file", "", "Input file.")
-	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit (e.g. \"2.5m\").")
-	flag.StringVar(&contentType, "content-type", "", "Content type.")
-	flag.StringVar(&storageClass, "storage-class", "", "Storage class (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\").")
+	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
+	flag.StringVar(&cacheControl, "cache-control", "", "Specifies caching behavior for the object.")
+	flag.StringVar(&contentDisposition, "content-disposition", "", "Specifies presentational information for the object.")
+	flag.StringVar(&contentEncoding, "content-encoding", "", "Specifies what content encodings have been applied to the object.")
+	flag.StringVar(&contentLanguage, "content-language", "", "Specifies the language the content is in.")
+	flag.StringVar(&contentType, "content-type", "", "A standard MIME type describing the format of the object data.")
+	flag.StringVar(&expectedBucketOwner, "expected-bucket-owner", "", "The account ID of the expected bucket owner.")
+	flag.StringVar(&tagging, "tagging", "", "The tag-set for the object. The tag-set must be encoded as URL Query parameters.")
+	flag.StringVar(&storageClass, "storage-class", "", "Storage class. (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\")")
+	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
 	flag.BoolVar(&version, "version", false, "Print version number.")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [parameters]\n", os.Args[0])
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Parameters:")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	if version {
@@ -53,22 +66,49 @@ func main() {
 	}
 
 	if bucket == "" || key == "" || file == "" {
-		fmt.Println("--bucket, --key, and --file are all required!")
+		flag.Usage()
+		fmt.Println()
+		fmt.Println("Error: -bucket, -key, and -file are all required!")
 		os.Exit(1)
 	}
 
+	// Construct the CreateMultipartUploadInput data
 	createMultipartUploadInput := s3.CreateMultipartUploadInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	}
-
 	if contentType != "" {
 		createMultipartUploadInput.ContentType = aws.String(contentType)
 	}
-
+	if contentDisposition != "" {
+		createMultipartUploadInput.ContentDisposition = aws.String(contentDisposition)
+	}
+	if contentEncoding != "" {
+		createMultipartUploadInput.ContentEncoding = aws.String(contentEncoding)
+	}
+	if contentLanguage != "" {
+		createMultipartUploadInput.ContentLanguage = aws.String(contentLanguage)
+	}
+	if cacheControl != "" {
+		createMultipartUploadInput.CacheControl = aws.String(cacheControl)
+	}
+	if expectedBucketOwner != "" {
+		createMultipartUploadInput.ExpectedBucketOwner = aws.String(expectedBucketOwner)
+	}
+	if tagging != "" {
+		createMultipartUploadInput.Tagging = aws.String(tagging)
+	}
 	if storageClass != "" {
 		if v, err := validStorageClass(storageClass); err == nil {
 			createMultipartUploadInput.StorageClass = v
+		} else {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+	if metadata != "" {
+		if m, err := parseMetadata(metadata); err == nil {
+			createMultipartUploadInput.Metadata = m
 		} else {
 			fmt.Println(err)
 			os.Exit(1)
@@ -149,7 +189,12 @@ func main() {
 	// Initialize the AWS SDK
 	cfg, err := config.LoadDefaultConfig(
 		context.TODO(),
-		config.WithSharedConfigProfile(profile),
+		func(o *config.LoadOptions) error {
+			if profile != "" {
+				o.SharedConfigProfile = profile
+			}
+			return nil
+		},
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -218,7 +263,7 @@ func main() {
 
 		if createMultipartUploadInput.StorageClass != "" &&
 			upload.StorageClass != createMultipartUploadInput.StorageClass {
-			fmt.Printf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove --storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
+			fmt.Printf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove -storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
 			os.Exit(1)
 		}
 	}
@@ -463,7 +508,7 @@ func main() {
 					fmt.Println()
 					fmt.Println()
 					fmt.Println("u       - set to unlimited transfer rate")
-					fmt.Println("r       - restore initial transfer limit (from --bwlimit)")
+					fmt.Println("r       - restore initial transfer limit (from -bwlimit)")
 					fmt.Println("a s d f - increase transfer limit by 1, 10, 100, or 250 kB/s")
 					fmt.Println("z x c v - decrease transfer limit by 1, 10, 100, or 250 kB/s")
 					fmt.Println("0-9     - limit the transfer rate to 0.X MB/s")

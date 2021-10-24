@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sys/unix"
 
@@ -46,6 +47,20 @@ func parseRate(s string) (int64, error) {
 		return 0, err
 	}
 	return int64(math.Round(f * float64(factor))), nil
+}
+
+func parseMetadata(s string) (map[string]string, error) {
+	m := make(map[string]string)
+	for _, kv := range strings.Split(s, ",") {
+		e := strings.SplitN(kv, "=", 2)
+		if len(e) < 2 {
+			return nil, errors.New("Malformed metadata")
+		}
+		key := e[0]
+		value := e[1]
+		m[key] = value
+	}
+	return m, nil
 }
 
 func formatSize(size int64) string {
