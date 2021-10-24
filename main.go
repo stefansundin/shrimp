@@ -25,6 +25,8 @@ import (
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+const version = "0.0.1"
+
 func init() {
 	// Do not fail if a region is not specified anywhere
 	// This is only used for the first call that looks up the bucket region
@@ -36,7 +38,7 @@ func init() {
 func main() {
 	// TODO: Make the flags consistent with the aws cli
 	var profile, bucket, key, file, bwlimit, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
-	var version bool
+	var versionFlag bool
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
 	flag.StringVar(&bucket, "bucket", "", "Bucket name.")
 	flag.StringVar(&key, "key", "", "Destination object key name.")
@@ -51,8 +53,16 @@ func main() {
 	flag.StringVar(&tagging, "tagging", "", "The tag-set for the object. The tag-set must be encoded as URL Query parameters.")
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\")")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
-	flag.BoolVar(&version, "version", false, "Print version number.")
+	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
 	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "shrimp version %s\n", version)
+		fmt.Fprintln(os.Stderr, "Copyright (C) 2021 Stefan Sundin")
+		fmt.Fprintln(os.Stderr, "Website: https://github.com/stefansundin/shrimp")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "shrimp comes with ABSOLUTELY NO WARRANTY.")
+		fmt.Fprintln(os.Stderr, "This is free software, and you are welcome to redistribute it under certain")
+		fmt.Fprintln(os.Stderr, "conditions. See the GNU General Public Licence version 3 for details.")
+		fmt.Fprintln(os.Stderr)
 		fmt.Fprintf(os.Stderr, "Usage: %s [parameters]\n", os.Args[0])
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Parameters:")
@@ -60,8 +70,8 @@ func main() {
 	}
 	flag.Parse()
 
-	if version {
-		fmt.Println("0.0.1")
+	if versionFlag {
+		fmt.Println(version)
 		os.Exit(0)
 	}
 
