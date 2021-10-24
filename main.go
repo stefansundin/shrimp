@@ -235,13 +235,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	bucketRegion := bucketLocationOutput.LocationConstraint
-	if bucketRegion == "" {
-		// This can be updated when aws-sdk-go-v2 supports GetBucketLocation WithNormalizeBucketLocation
-		bucketRegion = "us-east-1"
-	}
+	bucketRegion := normalizeBucketLocation(bucketLocationOutput.LocationConstraint)
 	client = s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.Region = string(bucketRegion)
+		o.Region = bucketRegion
 	})
 
 	// Abort if the object already exists
