@@ -15,10 +15,10 @@ import (
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-const kiB int64 = 1024
-const MiB int64 = 1024 * kiB
-const GiB int64 = 1024 * MiB
-const TiB int64 = 1024 * GiB
+const kiB = 1024
+const MiB = 1024 * kiB
+const GiB = 1024 * MiB
+const TiB = 1024 * GiB
 
 func min(a, b int64) int64 {
 	if a > b {
@@ -79,7 +79,7 @@ func parseMetadata(s string) (map[string]string, error) {
 
 func formatSize(size int64) string {
 	if size < 1e3 {
-		return fmt.Sprintf("%d B", size)
+		return fmt.Sprintf("%d bytes", size)
 	} else if size < 1e6 {
 		return fmt.Sprintf("%.1f kB", float64(size)/1e3)
 	} else if size < 1e9 {
@@ -95,7 +95,7 @@ func formatSize(size int64) string {
 // For consistency, format filesizes in GiB and TiB
 func formatFilesize(size int64) string {
 	if size < kiB {
-		return fmt.Sprintf("%d B", size)
+		return fmt.Sprintf("%d bytes", size)
 	} else if size < MiB {
 		return fmt.Sprintf("%.1f kiB (%d bytes)", float64(size)/float64(kiB), size)
 	} else if size < GiB {
@@ -151,5 +151,5 @@ func validStorageClass(s string) (s3Types.StorageClass, error) {
 			return v, nil
 		}
 	}
-	return sc, errors.New(fmt.Sprintf("Invalid --storage-class. Supported values: %v", values))
+	return sc, errors.New(fmt.Sprintf("Invalid storage class. Supported values: %v", values))
 }
