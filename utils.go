@@ -27,6 +27,20 @@ func min(a, b int64) int64 {
 	return a
 }
 
+func parseS3Uri(s string) (string, string) {
+	if !strings.HasPrefix(s, "s3://") {
+		return "", ""
+	}
+	parts := strings.SplitN(s[5:], "/", 2)
+	if len(parts) == 0 {
+		return "", ""
+	} else if len(parts) == 1 {
+		return parts[0], ""
+	} else {
+		return parts[0], parts[1]
+	}
+}
+
 func parseRate(s string) (int64, error) {
 	factor := 1
 	suffix := s[len(s)-1]

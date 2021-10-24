@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/stefansundin/shrimp/flowrate"
@@ -36,13 +37,9 @@ func init() {
 }
 
 func main() {
-	// TODO: Make the flags consistent with the aws cli
-	var profile, bucket, key, file, bwlimit, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
+	var profile, bwlimit, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
 	var versionFlag bool
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
-	flag.StringVar(&bucket, "bucket", "", "Bucket name.")
-	flag.StringVar(&key, "key", "", "Destination object key name.")
-	flag.StringVar(&file, "file", "", "Input file.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
 	flag.StringVar(&cacheControl, "cache-control", "", "Specifies caching behavior for the object.")
 	flag.StringVar(&contentDisposition, "content-disposition", "", "Specifies presentational information for the object.")
@@ -63,7 +60,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, "This is free software, and you are welcome to redistribute it under certain")
 		fmt.Fprintln(os.Stderr, "conditions. See the GNU General Public Licence version 3 for details.")
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintf(os.Stderr, "Usage: %s [parameters]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [parameters] <LocalPath> <S3Uri>\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, "LocalPath must be a local file.")
+		fmt.Fprintln(os.Stderr, "S3Uri must have the format s3://<bucketname>/<key>.")
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Parameters:")
 		flag.PrintDefaults()
@@ -75,10 +74,26 @@ func main() {
 		os.Exit(0)
 	}
 
-	if bucket == "" || key == "" || file == "" {
+	if flag.NArg() < 2 {
 		flag.Usage()
-		fmt.Println()
-		fmt.Println("Error: -bucket, -key, and -file are all required!")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Error: LocalPath and S3Uri parameters are required!")
+		os.Exit(1)
+	} else if flag.NArg() > 2 {
+		flag.Usage()
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Error: Unfortunately shrimp requires positional arguments (LocalPath and S3Uri) to be specified last.")
+		fmt.Fprintln(os.Stderr, "I will probably replace the flag parsing library in the future to address this.")
+		os.Exit(1)
+	}
+	file := flag.Arg(0)
+	bucket, key := parseS3Uri(flag.Arg(1))
+	if strings.HasPrefix(file, "s3://") {
+		fmt.Fprintln(os.Stderr, "Error: shrimp is currently not able to copy files from S3.")
+		os.Exit(1)
+	}
+	if bucket == "" || key == "" {
+		fmt.Fprintln(os.Stderr, "Error: The destination must have the format s3://<bucketname>/<key>")
 		os.Exit(1)
 	}
 
