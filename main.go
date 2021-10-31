@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stefansundin/shrimp/flowrate"
+	"github.com/stefansundin/shrimp/terminal"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -364,11 +365,10 @@ func main() {
 	}()
 
 	// Attempt to configure the terminal so that single characters can be read from stdin
-	stdinFd := os.Stdin.Fd()
-	oldState, err := configureTerminal(stdinFd)
+	oldStdinState, oldStdoutState, err := terminal.ConfigureTerminal()
 	if err == nil {
 		defer func() {
-			restoreTerminal(stdinFd, oldState)
+			terminal.RestoreTerminal(oldStdinState, oldStdoutState)
 		}()
 	} else {
 		fmt.Fprintln(os.Stderr, "Warning: could not configure terminal. You have to use the enter key after each keyboard input.")
@@ -530,7 +530,7 @@ func main() {
 					fmt.Println("Ctrl-C  - exit after current part")
 					fmt.Println("          press twice to abort immediately")
 					fmt.Println()
-				} else if r == '\n' {
+				} else if r == terminal.EnterKey {
 					fmt.Println()
 				}
 			}
