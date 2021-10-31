@@ -318,6 +318,14 @@ func run() (int, error) {
 					PartNumber: part.PartNumber,
 					ETag:       part.ETag,
 				})
+				// Check for potential problems (if not the last part)
+				if offset != fileSize {
+					if part.Size < 5*MiB {
+						fmt.Printf("Warning: Part %d has size %s, which is less than 5 MiB, and it is not the last part in the upload. This upload will fail with an error!\n", part.PartNumber, formatFilesize(part.Size))
+					} else if part.Size != page.Parts[0].Size {
+						fmt.Printf("Warning: Part %d has an inconsistent size (%d bytes) compared to part 1 (%d bytes).\n", part.PartNumber, part.Size, page.Parts[0].Size)
+					}
+				}
 			}
 		}
 		fmt.Printf("%s already uploaded in %d parts.\n", formatFilesize(offset), len(parts))
