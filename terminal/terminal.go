@@ -13,13 +13,17 @@ const (
 	EnterKey = '\n'
 )
 
-func ConfigureTerminal() (*unix.Termios, *unix.Termios, error) {
+type State struct {
+	stdin *unix.Termios
+}
+
+func ConfigureTerminal() (*State, error) {
 	fd := os.Stdin.Fd()
 
 	var state unix.Termios
 	err := termios.Tcgetattr(fd, &state)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	oldState := state
 
@@ -28,13 +32,13 @@ func ConfigureTerminal() (*unix.Termios, *unix.Termios, error) {
 	state.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON
 	err = termios.Tcsetattr(fd, termios.TCSANOW, &state)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return &oldState, nil, nil
+	return &State{stdin: &oldState}, nil
 }
 
-func RestoreTerminal(stdinState, stdoutState *unix.Termios) error {
+func RestoreTerminal(state *State) error {
 	fd := os.Stdin.Fd()
-	return termios.Tcsetattr(fd, termios.TCSANOW, stdinState)
+	return termios.Tcsetattr(fd, termios.TCSANOW, state.stdin)
 }

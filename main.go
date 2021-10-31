@@ -365,10 +365,10 @@ func main() {
 	}()
 
 	// Attempt to configure the terminal so that single characters can be read from stdin
-	oldStdinState, oldStdoutState, err := terminal.ConfigureTerminal()
+	oldState, err := terminal.ConfigureTerminal()
 	if err == nil {
 		defer func() {
-			terminal.RestoreTerminal(oldStdinState, oldStdoutState)
+			terminal.RestoreTerminal(oldState)
 		}()
 	} else {
 		fmt.Fprintln(os.Stderr, "Warning: could not configure terminal. You have to use the enter key after each keyboard input.")

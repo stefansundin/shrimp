@@ -10,18 +10,23 @@ const (
 	EnterKey = '\r'
 )
 
-func ConfigureTerminal() (uint32, uint32, error) {
+type State struct {
+	stdin  uint32
+	stdout uint32
+}
+
+func ConfigureTerminal() (*State, error) {
 	stdinHandle := windows.Handle(os.Stdin.Fd())
 	stdoutHandle := windows.Handle(os.Stdout.Fd())
 
 	var stdinState, stdoutState uint32
 	err := windows.GetConsoleMode(stdinHandle, &stdinState)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 	err = windows.GetConsoleMode(stdoutHandle, &stdoutState)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 	oldStdinState := stdinState
 	oldStdoutState := stdoutState
@@ -31,23 +36,26 @@ func ConfigureTerminal() (uint32, uint32, error) {
 
 	err = windows.SetConsoleMode(stdinHandle, stdinState)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
 	err = windows.SetConsoleMode(stdoutHandle, stdoutState)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
-	return oldStdinState, oldStdoutState, nil
+	return &State{
+		stdin:  oldStdinState,
+		stdout: oldStdoutState,
+	}, nil
 }
 
-func RestoreTerminal(stdinState, stdoutState uint32) error {
+func RestoreTerminal(oldState *State) error {
 	stdinHandle := windows.Handle(os.Stdin.Fd())
 	stdoutHandle := windows.Handle(os.Stdout.Fd())
 
-	stdinErr := windows.SetConsoleMode(stdinHandle, stdinState)
-	stdoutErr := windows.SetConsoleMode(stdoutHandle, stdoutState)
+	stdinErr := windows.SetConsoleMode(stdinHandle, oldState.stdin)
+	stdoutErr := windows.SetConsoleMode(stdoutHandle, oldState.stdout)
 
 	if stdinErr != nil {
 		return stdinErr
