@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/sys/unix"
-
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
@@ -108,9 +106,6 @@ func formatFilesize(size int64) string {
 }
 
 func getSha256Sum(sumsFn string, entryPath string) (string, error) {
-	if err := unix.Access(sumsFn, unix.R_OK); err != nil {
-		return "", err
-	}
 	entryPath, err := filepath.Abs(entryPath)
 
 	file, err := os.Open(sumsFn)

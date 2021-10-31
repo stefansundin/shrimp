@@ -18,8 +18,6 @@ import (
 
 	"github.com/stefansundin/shrimp/flowrate"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -150,12 +148,6 @@ func main() {
 		}
 	}
 	initialRate := rate
-
-	// Check if we can read from the file
-	if err := unix.Access(file, unix.R_OK); err != nil {
-		fmt.Println("Error: can not read from the file.")
-		os.Exit(1)
-	}
 
 	// Get the file size
 	// TODO: Check if the file has been modified since the multi part was started and print a warning
