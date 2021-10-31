@@ -27,6 +27,8 @@ import (
 
 const version = "0.0.1"
 
+var oldTerminalState *terminal.State
+
 func init() {
 	// Do not fail if a region is not specified anywhere
 	// This is only used for the first call that looks up the bucket region
@@ -36,6 +38,17 @@ func init() {
 }
 
 func main() {
+	exitCode, err := run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	if oldTerminalState != nil {
+		terminal.RestoreTerminal(oldTerminalState)
+	}
+	os.Exit(exitCode)
+}
+
+func run() (int, error) {
 	var profile, bwlimit, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
 	var versionFlag bool
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
@@ -70,30 +83,30 @@ func main() {
 
 	if versionFlag {
 		fmt.Println(version)
-		os.Exit(0)
+		return 0, nil
 	}
 
 	if flag.NArg() < 2 {
 		flag.Usage()
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Error: LocalPath and S3Uri parameters are required!")
-		os.Exit(1)
+		return 1, nil
 	} else if flag.NArg() > 2 {
 		flag.Usage()
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Error: Unfortunately shrimp requires positional arguments (LocalPath and S3Uri) to be specified last.")
 		fmt.Fprintln(os.Stderr, "I will probably replace the flag parsing library in the future to address this.")
-		os.Exit(1)
+		return 1, nil
 	}
 	file := flag.Arg(0)
 	bucket, key := parseS3Uri(flag.Arg(1))
 	if strings.HasPrefix(file, "s3://") {
 		fmt.Fprintln(os.Stderr, "Error: shrimp is currently not able to copy files from S3.")
-		os.Exit(1)
+		return 1, nil
 	}
 	if bucket == "" || key == "" {
 		fmt.Fprintln(os.Stderr, "Error: The destination must have the format s3://<bucketname>/<key>")
-		os.Exit(1)
+		return 1, nil
 	}
 
 	// Construct the CreateMultipartUploadInput data
@@ -126,16 +139,14 @@ func main() {
 		if v, err := validStorageClass(storageClass); err == nil {
 			createMultipartUploadInput.StorageClass = v
 		} else {
-			fmt.Println(err)
-			os.Exit(1)
+			return 1, err
 		}
 	}
 	if metadata != "" {
 		if m, err := parseMetadata(metadata); err == nil {
 			createMultipartUploadInput.Metadata = m
 		} else {
-			fmt.Println(err)
-			os.Exit(1)
+			return 1, err
 		}
 	}
 
@@ -144,8 +155,7 @@ func main() {
 		var err error
 		rate, err = parseRate(bwlimit)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return 1, err
 		}
 	}
 	initialRate := rate
@@ -154,8 +164,7 @@ func main() {
 	// TODO: Check if the file has been modified since the multi part was started and print a warning
 	stat, err := os.Stat(file)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1, err
 	}
 	fileSize := stat.Size()
 	fmt.Printf("File size: %s\n", formatFilesize(fileSize))
@@ -192,8 +201,7 @@ func main() {
 	if !errors.Is(err, fs.ErrNotExist) {
 		sum, err := getSha256Sum("SHA256SUMS", file)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return 1, err
 		} else if sum == "" {
 			fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file.")
 		} else {
@@ -215,8 +223,7 @@ func main() {
 		},
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1, err
 	}
 	client := s3.NewFromConfig(cfg)
 
@@ -225,8 +232,7 @@ func main() {
 		Bucket: aws.String(bucket),
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1, err
 	}
 	bucketRegion := normalizeBucketLocation(bucketLocationOutput.LocationConstraint)
 	client = s3.NewFromConfig(cfg, func(o *s3.Options) {
@@ -240,7 +246,7 @@ func main() {
 	})
 	if err == nil {
 		fmt.Println("The object already exists in the S3 bucket. Please delete it first.")
-		os.Exit(1)
+		return 1, nil
 	}
 
 	// Check if we should resume an upload
@@ -252,8 +258,7 @@ func main() {
 		Prefix: aws.String(key),
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1, err
 	}
 	for _, upload := range outputListMultipartUploads.Uploads {
 		if *upload.Key != key {
@@ -263,22 +268,21 @@ func main() {
 		// fmt.Printf("Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
 		if uploadId != "" {
 			fmt.Println("Error: more than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
-			os.Exit(1)
+			return 1, nil
 		}
 		uploadId = *upload.UploadId
 		fmt.Printf("Found an upload in progress with upload id: %s\n", uploadId)
 
 		localLocation, err := time.LoadLocation("Local")
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return 1, err
 		}
 		fmt.Printf("Upload started at %v.\n", upload.Initiated.In(localLocation))
 
 		if createMultipartUploadInput.StorageClass != "" &&
 			upload.StorageClass != createMultipartUploadInput.StorageClass {
 			fmt.Printf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove -storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
-			os.Exit(1)
+			return 1, nil
 		}
 	}
 
@@ -290,8 +294,7 @@ func main() {
 		fmt.Println("Creating multipart upload.")
 		outputCreateMultipartUpload, err := client.CreateMultipartUpload(context.TODO(), &createMultipartUploadInput)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return 1, err
 		}
 
 		uploadId = *outputCreateMultipartUpload.UploadId
@@ -305,8 +308,7 @@ func main() {
 		for paginatorListParts.HasMorePages() {
 			page, err := paginatorListParts.NextPage(context.TODO())
 			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
+				return 1, err
 			}
 			partNumber += int32(len(page.Parts))
 			for _, part := range page.Parts {
@@ -329,48 +331,19 @@ func main() {
 		for i, partNumber := range partNumbers {
 			if partNumber != i+1 {
 				fmt.Fprintf(os.Stderr, "Error: existing parts are not contiguous (part %d is missing). Can not handle this case yet.\n", i+1)
-				os.Exit(1)
+				return 1, nil
 			}
 		}
 
 		if offset > fileSize {
 			fmt.Println("Error: size of parts already uploaded is greater than local file size.")
-			os.Exit(1)
+			return 1, nil
 		}
 	}
 
-	// Control variables
-	var oldRate int64
-	interrupted := false
-	paused := false
-	waitingToUnpause := false
-
-	// Trap Ctrl-C signal
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, os.Interrupt)
-	go func() {
-		for sig := range signalChannel {
-			if sig != os.Interrupt {
-				continue
-			}
-			if waitingToUnpause {
-				os.Exit(1)
-			}
-			if interrupted {
-				os.Exit(1)
-			}
-			interrupted = true
-			fmt.Println("\nInterrupt received, finishing current part. Press Ctrl-C again to exit immediately. Press the space key to cancel exit.")
-		}
-	}()
-
 	// Attempt to configure the terminal so that single characters can be read from stdin
-	oldState, err := terminal.ConfigureTerminal()
-	if err == nil {
-		defer func() {
-			terminal.RestoreTerminal(oldState)
-		}()
-	} else {
+	oldTerminalState, err = terminal.ConfigureTerminal()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "Warning: could not configure terminal. You have to use the enter key after each keyboard input.")
 		fmt.Fprintln(os.Stderr, err)
 	}
@@ -387,12 +360,45 @@ func main() {
 		}
 	}()
 
+	// Control variables
+	var oldRate int64
+	interrupted := false
+	paused := false
+	waitingToUnpause := false
+
+	// Trap Ctrl-C signal
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt)
+	go func() {
+		for sig := range signalChannel {
+			if sig != os.Interrupt {
+				continue
+			}
+			if interrupted {
+				if oldTerminalState != nil {
+					terminal.RestoreTerminal(oldTerminalState)
+				}
+				fmt.Println()
+				os.Exit(1)
+			}
+			interrupted = true
+			if waitingToUnpause {
+				stdinInput <- 'q'
+				continue
+			}
+			fmt.Println("\nInterrupt received, finishing current part. Press Ctrl-C again to exit immediately. Press the space key to cancel exit.")
+		}
+	}()
+
 	fmt.Println()
 	fmt.Println("Tip: Press ? to see the available keyboard controls.")
 
 	for offset < fileSize {
 		for paused {
 			waitingToUnpause = true
+			if interrupted {
+				return 1, nil
+			}
 			fmt.Println("Transfer is paused. Press the space key to resume.")
 			r := <-stdinInput
 			if r == ' ' {
@@ -406,8 +412,7 @@ func main() {
 		partData := make([]byte, min(partSize, fileSize-offset))
 		n, err := f.ReadAt(partData, offset)
 		if err != nil && err != io.EOF {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return 1, err
 		}
 
 		reader := flowrate.NewReader(bytes.NewReader(partData), rate)
@@ -551,7 +556,7 @@ func main() {
 			// Check if the user wants to stop
 			if interrupted {
 				fmt.Println("Exited early.")
-				os.Exit(1)
+				return 1, nil
 			}
 
 			parts = append(parts, s3Types.CompletedPart{
@@ -565,7 +570,7 @@ func main() {
 			fmt.Fprintln(os.Stderr)
 			fmt.Fprintf(os.Stderr, "Error uploading part %d: %v\n", partNumber, uploadErr)
 			if interrupted {
-				os.Exit(1)
+				return 1, nil
 			}
 			fmt.Fprintln(os.Stderr, "Waiting 10 seconds and then retrying.")
 			fmt.Fprintln(os.Stderr)
@@ -577,7 +582,7 @@ func main() {
 	// Do a sanity check
 	if offset != fileSize {
 		fmt.Println("Something went terribly wrong (offset != fileSize).")
-		os.Exit(1)
+		return 1, nil
 	}
 
 	// Complete the upload
@@ -591,9 +596,9 @@ func main() {
 		},
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1, err
 	}
 
 	fmt.Println("All done!")
+	return 0, nil
 }
