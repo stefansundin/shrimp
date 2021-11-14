@@ -49,6 +49,8 @@ Parameters:
     	The account ID of the expected bucket owner.
   -metadata string
     	A map of metadata to store with the object in S3. (JSON syntax is not supported)
+  -part-size string
+    	Override automatic part size. (e.g. "128m")
   -profile string
     	Use a specific profile from your credential file.
   -storage-class string

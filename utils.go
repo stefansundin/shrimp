@@ -61,6 +61,27 @@ func parseRate(s string) (int64, error) {
 	return int64(math.Round(f * float64(factor))), nil
 }
 
+func parseFilesize(s string) (int64, error) {
+	factor := 1
+	suffix := s[len(s)-1]
+	if suffix == 'k' || suffix == 'K' {
+		factor = kiB
+	} else if suffix == 'm' || suffix == 'M' {
+		factor = MiB
+	} else if suffix == 'g' || suffix == 'G' {
+		factor = GiB
+	}
+	if factor != 1 {
+		s = s[0 : len(s)-1]
+	}
+
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, err
+	}
+	return int64(math.Round(f * float64(factor))), nil
+}
+
 func parseMetadata(s string) (map[string]string, error) {
 	m := make(map[string]string)
 	for _, kv := range strings.Split(s, ",") {

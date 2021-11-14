@@ -49,10 +49,11 @@ func main() {
 }
 
 func run() (int, error) {
-	var profile, bwlimit, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
+	var profile, bwlimit, partSizeRaw, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
 	var versionFlag bool
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
+	flag.StringVar(&partSizeRaw, "part-size", "", "Override automatic part size. (e.g. \"128m\")")
 	flag.StringVar(&cacheControl, "cache-control", "", "Specifies caching behavior for the object.")
 	flag.StringVar(&contentDisposition, "content-disposition", "", "Specifies presentational information for the object.")
 	flag.StringVar(&contentEncoding, "content-encoding", "", "Specifies what content encodings have been applied to the object.")
@@ -168,25 +169,38 @@ func run() (int, error) {
 	}
 	fileSize := stat.Size()
 	fmt.Printf("File size: %s\n", formatFilesize(fileSize))
-
-	// Detect best part size
-	// Double the part size until the file fits in 10,000 parts.
-	// The minimum part size is 5 MiB (except for the last part), although shrimp starts at 8 MiB (like the aws cli).
-	// The maximum part size is 5 GiB, which would in theory allow 50000 GiB (~48.8 TiB) in 10,000 parts.
-	// The aws cli follows a very similar algorithm: https://github.com/boto/s3transfer/blob/0.5.0/s3transfer/utils.py#L711-L763
-	var partSize int64 = 8 * MiB
-	for 10000*partSize < fileSize {
-		partSize *= 2
-	}
-	if partSize > 5*GiB {
-		partSize = 5 * GiB
-	}
-	fmt.Printf("Part size: %s\n", formatFilesize(partSize))
-	fmt.Printf("The upload will consist of %d parts.\n", int64(math.Ceil(float64(fileSize)/float64(partSize))))
 	if fileSize > 5*TiB {
 		fmt.Println("Warning: File size is greater than 5 TiB. At the time of writing 5 TiB is the maximum object size.")
 		fmt.Println("This program is not stopping you from proceeding in case the limit has been increased, but be warned!")
 	}
+
+	var partSize int64 = 8 * MiB
+	if partSizeRaw != "" {
+		var err error
+		partSize, err = parseFilesize(partSizeRaw)
+		if err != nil {
+			return 1, err
+		}
+	} else {
+		// Detect best part size
+		// Double the part size until the file fits in 10,000 parts.
+		// The minimum part size is 5 MiB (except for the last part), although shrimp starts at 8 MiB (like the aws cli).
+		// The maximum part size is 5 GiB, which would in theory allow 50000 GiB (~48.8 TiB) in 10,000 parts.
+		// The aws cli follows a very similar algorithm: https://github.com/boto/s3transfer/blob/0.5.0/s3transfer/utils.py#L711-L763
+		// var partSize int64 = 8 * MiB
+		for 10000*partSize < fileSize {
+			partSize *= 2
+		}
+		if partSize > 5*GiB {
+			partSize = 5 * GiB
+		}
+	}
+	fmt.Printf("Part size: %s\n", formatFilesize(partSize))
+	if partSize < 5*MiB || partSize > 5*GiB {
+		fmt.Println("Warning: Part size is not in the allowed limits (must be between 5 MiB - 5 GiB).")
+		fmt.Println("This program is not stopping you from proceeding in case the limits have changed, but be warned!")
+	}
+	fmt.Printf("The upload will consist of %d parts.\n", int64(math.Ceil(float64(fileSize)/float64(partSize))))
 	if 10000*partSize < fileSize {
 		fmt.Println("Warning: File size is too large to be transferred in 10,000 parts!")
 	}
