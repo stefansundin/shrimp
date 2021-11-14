@@ -55,6 +55,8 @@ Parameters:
     	The account ID of the expected bucket owner.
   -metadata string
     	A map of metadata to store with the object in S3. (JSON syntax is not supported)
+  -no-sign-request
+    	Do not sign requests. This does not work if used with AWS, but may work with other S3 APIs.
   -no-verify-ssl
     	Do not verify SSL certificates.
   -part-size string

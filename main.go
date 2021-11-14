@@ -52,7 +52,7 @@ func main() {
 
 func run() (int, error) {
 	var profile, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
-	var noVerifySsl, debug, versionFlag bool
+	var noVerifySsl, noSignRequest, debug, versionFlag bool
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
 	flag.StringVar(&partSizeRaw, "part-size", "", "Override automatic part size. (e.g. \"128m\")")
@@ -68,6 +68,7 @@ func run() (int, error) {
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\")")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
+	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work if used with AWS, but may work with other S3 APIs.")
 	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
 	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
 	flag.Usage = func() {
@@ -272,6 +273,9 @@ func run() (int, error) {
 	}
 	client := s3.NewFromConfig(cfg,
 		func(o *s3.Options) {
+			if noSignRequest {
+				o.Credentials = aws.AnonymousCredentials{}
+			}
 			if endpointURL != "" {
 				o.EndpointResolver = s3.EndpointResolverFromURL(endpointURL)
 				o.UsePathStyle = true
@@ -289,6 +293,9 @@ func run() (int, error) {
 		}
 		bucketRegion := normalizeBucketLocation(bucketLocationOutput.LocationConstraint)
 		client = s3.NewFromConfig(cfg, func(o *s3.Options) {
+			if noSignRequest {
+				o.Credentials = aws.AnonymousCredentials{}
+			}
 			o.Region = bucketRegion
 		})
 	}
