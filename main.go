@@ -52,7 +52,7 @@ func main() {
 
 func run() (int, error) {
 	var profile, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
-	var noVerifySsl, versionFlag bool
+	var noVerifySsl, debug, versionFlag bool
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
 	flag.StringVar(&partSizeRaw, "part-size", "", "Override automatic part size. (e.g. \"128m\")")
@@ -68,6 +68,7 @@ func run() (int, error) {
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\")")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
+	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
 	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "shrimp version %s\n", version)
@@ -258,6 +259,10 @@ func run() (int, error) {
 						},
 					},
 				}
+			}
+			if debug {
+				var lm aws.ClientLogMode = aws.LogRequest | aws.LogResponse
+				o.ClientLogMode = &lm
 			}
 			return nil
 		},

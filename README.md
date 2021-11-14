@@ -47,6 +47,8 @@ Parameters:
     	Specifies the language the content is in.
   -content-type string
     	A standard MIME type describing the format of the object data.
+  -debug
+    	Turn on debug logging.
   -endpoint-url string
     	Override the S3 endpoint URL. (for use with S3 compatible APIs)
   -expected-bucket-owner string
