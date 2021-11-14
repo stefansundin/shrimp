@@ -126,11 +126,14 @@ func formatFilesize(size int64) string {
 	}
 }
 
-func formatLimit(rate int64) string {
+func formatLimit(rate int64, parenthesis bool) string {
 	if rate == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" (limit: %s/s)", formatSize(rate))
+	if parenthesis {
+		return fmt.Sprintf(" (limit: %s/s)", formatSize(rate))
+	}
+	return fmt.Sprintf(", limit: %s/s", formatSize(rate))
 }
 
 func getSha256Sum(sumsFn string, entryPath string) (string, error) {

@@ -599,7 +599,7 @@ func run() (int, error) {
 			}
 
 			s = reader.Status()
-			fmt.Printf("\033[2K\rUploading part %d: %s, %s/s%s, %s remaining. (total: %s, %s remaining)", partNumber, s.Progress, formatSize(s.CurRate), formatLimit(rate), s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
+			fmt.Printf("\033[2K\rUploading part %d: %s, %s/s%s, %s remaining. (total: %s, %s remaining)", partNumber, s.Progress, formatSize(s.CurRate), formatLimit(rate, true), s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 		}
 
 		// Part upload has completed or failed
@@ -610,7 +610,7 @@ func run() (int, error) {
 			} else {
 				timeElapsed = timeElapsed.Round(time.Second)
 			}
-			fmt.Printf("\033[2K\rUploaded part %d in %s (%s/s%s). (total: %s, %s remaining)\n", partNumber, timeElapsed, formatSize(s.CurRate), formatLimit(rate), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
+			fmt.Printf("\033[2K\rUploaded part %d in %s (%s/s%s). (total: %s, %s remaining)\n", partNumber, timeElapsed, formatSize(s.CurRate), formatLimit(rate, false), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 
 			// Check if the user wants to stop
 			if interrupted {
