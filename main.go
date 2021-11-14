@@ -272,6 +272,7 @@ func run() (int, error) {
 				o.UsePathStyle = true
 			}
 		})
+	encryptedEndpoint := (endpointURL == "" || strings.HasPrefix(endpointURL, "https://"))
 
 	// Get the bucket location
 	if endpointURL == "" {
@@ -472,7 +473,7 @@ func run() (int, error) {
 			return 1, err
 		}
 
-		reader := flowrate.NewReader(bytes.NewReader(partData), rate)
+		reader := flowrate.NewReader(bytes.NewReader(partData), rate, !encryptedEndpoint)
 		reader.SetTransferSize(int64(len(partData)))
 		reader.SetTotal(offset, fileSize)
 

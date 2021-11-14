@@ -31,17 +31,26 @@ type Reader struct {
 
 	limit int64 // Rate limit in bytes per second (unlimited when <= 0)
 	block bool  // What to do when no new bytes can be read due to the limit
+
+	skipFirstPass bool // Whether or not to skip rate limiting on the first pass
+	pass          int  // Keep track of how many passes have been made
 }
 
 // NewReader restricts all Read operations on r to limit bytes per second.
-func NewReader(r io.ReadSeeker, limit int64) *Reader {
-	return &Reader{r, New(0, 0), limit, true}
+func NewReader(r io.ReadSeeker, limit int64, skipFirstPass bool) *Reader {
+	return &Reader{r, New(0, 0), limit, true, skipFirstPass, 0}
 }
 
 // Read reads up to len(p) bytes into p without exceeding the current transfer
 // rate limit. It returns (0, nil) immediately if r is non-blocking and no new
 // bytes can be read at this time.
 func (r *Reader) Read(p []byte) (n int, err error) {
+	if r.skipFirstPass && r.pass < 2 {
+		// Do not rate limiting the first pass (when the AWS SDK calculates the checksum, the data is not transferred over the network)
+		n, err = r.ReadSeeker.Read(p)
+		return
+	}
+
 	p = p[:r.Limit(len(p), r.limit, r.block)]
 	if len(p) > 0 {
 		n, err = r.IO(r.ReadSeeker.Read(p))
@@ -50,6 +59,10 @@ func (r *Reader) Read(p []byte) (n int, err error) {
 }
 
 func (r *Reader) Seek(offset int64, whence int) (n int64, err error) {
+	if whence == io.SeekStart {
+		r.pass += 1
+	}
+
 	if c, ok := r.ReadSeeker.(io.Seeker); ok {
 		n, err = c.Seek(offset, whence)
 	}
