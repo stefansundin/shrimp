@@ -105,6 +105,13 @@ func formatFilesize(size int64) string {
 	}
 }
 
+func formatLimit(rate int64) string {
+	if rate == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (limit: %s/s)", formatSize(rate))
+}
+
 func getSha256Sum(sumsFn string, entryPath string) (string, error) {
 	entryPath, err := filepath.Abs(entryPath)
 

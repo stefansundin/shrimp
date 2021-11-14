@@ -416,6 +416,7 @@ func run() (int, error) {
 			}
 		}
 
+		var s flowrate.Status
 		partStartTime := time.Now()
 		partData := make([]byte, min(partSize, fileSize-offset))
 		n, err := f.ReadAt(partData, offset)
@@ -548,13 +549,8 @@ func run() (int, error) {
 				}
 			}
 
-			var targetRate string
-			if rate != 0 {
-				targetRate = fmt.Sprintf(" (limit: %s/s)", formatSize(rate))
-			}
-
-			s := reader.Status()
-			fmt.Printf("\033[2K\rUploading part %d: %s, %s/s%s, %s remaining. (total: %s, %s remaining)", partNumber, s.Progress, formatSize(s.CurRate), targetRate, s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
+			s = reader.Status()
+			fmt.Printf("\033[2K\rUploading part %d: %s, %s/s%s, %s remaining. (total: %s, %s remaining)", partNumber, s.Progress, formatSize(s.CurRate), formatLimit(rate), s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 		}
 
 		// Part upload has completed or failed
@@ -565,7 +561,7 @@ func run() (int, error) {
 			} else {
 				timeElapsed = timeElapsed.Round(time.Second)
 			}
-			fmt.Printf("\033[2K\rUploaded part %d in %s.\n", partNumber, timeElapsed)
+			fmt.Printf("\033[2K\rUploaded part %d in %s (%s/s%s). (total: %s, %s remaining)\n", partNumber, timeElapsed, formatSize(s.CurRate), formatLimit(rate), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 
 			// Check if the user wants to stop
 			if interrupted {
