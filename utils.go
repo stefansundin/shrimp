@@ -2,8 +2,11 @@ package main
 
 import (
 	"bufio"
+	"crypto/hmac"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
 	"math"
 	"os"
 	"path/filepath"
@@ -187,4 +190,22 @@ func normalizeBucketLocation(loc s3Types.BucketLocationConstraint) string {
 		return "us-east-1"
 	}
 	return string(loc)
+}
+
+func generateOTP(secretBytes []byte, counter uint64, hashAlg func() hash.Hash, digits int) (string, error) {
+	mac := hmac.New(hashAlg, secretBytes)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, counter)
+	_, err := mac.Write(buf)
+	if err != nil {
+		return "", err
+	}
+	sum := mac.Sum(nil)
+	offset := sum[len(sum)-1] & 0xf
+	value := int64(((int(sum[offset]) & 0x7f) << 24) |
+		((int(sum[offset+1] & 0xff)) << 16) |
+		((int(sum[offset+2] & 0xff)) << 8) |
+		(int(sum[offset+3]) & 0xff))
+	mod := int32(value % int64(math.Pow10(digits)))
+	return fmt.Sprintf(fmt.Sprintf("%%0%dd", digits), mod), nil
 }

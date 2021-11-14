@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/tls"
+	"encoding/base32"
 	"errors"
 	"flag"
 	"fmt"
@@ -53,8 +55,9 @@ func main() {
 
 func run() (int, error) {
 	var profile, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
-	var noVerifySsl, noSignRequest, debug, versionFlag bool
+	var noVerifySsl, noSignRequest, mfaSecretFlag, debug, versionFlag bool
 	var mfaDuration time.Duration
+	var mfaSecret []byte
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
 	flag.StringVar(&partSizeRaw, "part-size", "", "Override automatic part size. (e.g. \"128m\")")
@@ -70,6 +73,7 @@ func run() (int, error) {
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\")")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
 	flag.DurationVar(&mfaDuration, "mfa-duration", time.Hour, "MFA duration. shrimp will prompt for another code after this duration. (max \"12h\")")
+	flag.BoolVar(&mfaSecretFlag, "mfa-secret", false, "Provide the MFA secret and shrimp will automatically generate TOTP codes. (useful if the upload takes longer than the allowed assume role duration)")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
 	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work if used with AWS, but may work with other S3 APIs.")
 	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
@@ -115,6 +119,32 @@ func run() (int, error) {
 	}
 	if mfaDuration > 12*time.Hour {
 		fmt.Println("Warning: MFA duration can not exceed 12 hours.")
+	}
+	if mfaSecretFlag {
+		fmt.Println("Read more about the -mfa-secret feature here: https://github.com/stefansundin/shrimp/discussions/3")
+		secret, ok := os.LookupEnv("AWS_MFA_SECRET")
+		if ok {
+			fmt.Println("MFA secret read from AWS_MFA_SECRET.")
+		} else {
+			fmt.Printf("MFA secret: ")
+			_, err := fmt.Scanln(&secret)
+			fmt.Printf("\033[1A\033[2K") // erase the line
+			if err != nil {
+				return 1, err
+			}
+		}
+		fmt.Println()
+		// Normalize secret
+		secret = strings.TrimSpace(secret)
+		if n := len(secret) % 8; n != 0 {
+			secret = secret + strings.Repeat("=", 8-n)
+		}
+		secret = strings.ToUpper(secret)
+		var err error
+		mfaSecret, err = base32.StdEncoding.DecodeString(secret)
+		if err != nil {
+			return 1, errors.New("Invalid MFA secret.")
+		}
 	}
 	file := flag.Arg(0)
 	bucket, key := parseS3Uri(flag.Arg(1))
@@ -275,7 +305,23 @@ func run() (int, error) {
 		},
 		config.WithAssumeRoleCredentialOptions(func(o *stscreds.AssumeRoleOptions) {
 			o.Duration = mfaDuration
-			o.TokenProvider = stscreds.StdinTokenProvider
+			if mfaSecret == nil {
+				o.TokenProvider = stscreds.StdinTokenProvider
+			} else {
+				o.TokenProvider = func() (string, error) {
+					t := time.Now().UTC()
+					period := 30
+					counter := uint64(math.Floor(float64(t.Unix()) / float64(period)))
+					code, err := generateOTP(mfaSecret, counter, sha1.New, 6)
+					if debug {
+						fmt.Fprintf(os.Stderr, "Generated TOTP code: %s\n", code)
+					}
+					if err != nil {
+						fmt.Fprintln(os.Stderr, err)
+					}
+					return code, err
+				}
+			}
 		}),
 	)
 	if err != nil {
