@@ -559,7 +559,13 @@ func run() (int, error) {
 
 		// Part upload has completed or failed
 		if uploadErr == nil {
-			fmt.Printf("\033[2K\rUploaded part %d in %s.\n", partNumber, time.Since(partStartTime).Round(time.Second))
+			timeElapsed := time.Since(partStartTime)
+			if timeElapsed < time.Second {
+				timeElapsed = timeElapsed.Round(time.Millisecond)
+			} else {
+				timeElapsed = timeElapsed.Round(time.Second)
+			}
+			fmt.Printf("\033[2K\rUploaded part %d in %s.\n", partNumber, timeElapsed)
 
 			// Check if the user wants to stop
 			if interrupted {
