@@ -21,7 +21,7 @@ Current status: **testing phase**. Please do not use it for important files just
 Precompiled binaries will be provided at a later date. For now you can install using `go install`:
 
 ```
-$ go install github.com/stefansundin/shrimp@latest
+go install github.com/stefansundin/shrimp@latest
 ```
 
 ## Usage
