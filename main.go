@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/fs"
 	"math"
+	"net/http"
 	"os"
 	"os/signal"
 	"sort"
@@ -49,11 +51,13 @@ func main() {
 }
 
 func run() (int, error) {
-	var profile, bwlimit, partSizeRaw, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
-	var versionFlag bool
+	var profile, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
+	var noVerifySsl, versionFlag bool
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
 	flag.StringVar(&partSizeRaw, "part-size", "", "Override automatic part size. (e.g. \"128m\")")
+	flag.StringVar(&endpointURL, "endpoint-url", "", "Override the S3 endpoint URL. (for use with S3 compatible APIs)")
+	flag.StringVar(&caBundle, "ca-bundle", "", "The CA certificate bundle to use when verifying SSL certificates.")
 	flag.StringVar(&cacheControl, "cache-control", "", "Specifies caching behavior for the object.")
 	flag.StringVar(&contentDisposition, "content-disposition", "", "Specifies presentational information for the object.")
 	flag.StringVar(&contentEncoding, "content-encoding", "", "Specifies what content encodings have been applied to the object.")
@@ -63,6 +67,7 @@ func run() (int, error) {
 	flag.StringVar(&tagging, "tagging", "", "The tag-set for the object. The tag-set must be encoded as URL Query parameters.")
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\")")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
+	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
 	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "shrimp version %s\n", version)
@@ -97,6 +102,10 @@ func run() (int, error) {
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Error: Unfortunately shrimp requires positional arguments (LocalPath and S3Uri) to be specified last.")
 		fmt.Fprintln(os.Stderr, "I will probably replace the flag parsing library in the future to address this.")
+		return 1, nil
+	}
+	if endpointURL != "" && !strings.HasPrefix(endpointURL, "http://") && !strings.HasPrefix(endpointURL, "https://") {
+		fmt.Fprintln(os.Stderr, "Error: the endpoint URL must start with http:// or https://.")
 		return 1, nil
 	}
 	file := flag.Arg(0)
@@ -233,25 +242,50 @@ func run() (int, error) {
 			if profile != "" {
 				o.SharedConfigProfile = profile
 			}
+			if caBundle != "" {
+				f, err := os.Open(caBundle)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				}
+				o.CustomCABundle = f
+			}
+			if noVerifySsl {
+				o.HTTPClient = &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{
+							InsecureSkipVerify: true,
+						},
+					},
+				}
+			}
 			return nil
 		},
 	)
 	if err != nil {
 		return 1, err
 	}
-	client := s3.NewFromConfig(cfg)
+	client := s3.NewFromConfig(cfg,
+		func(o *s3.Options) {
+			if endpointURL != "" {
+				o.EndpointResolver = s3.EndpointResolverFromURL(endpointURL)
+				o.UsePathStyle = true
+			}
+		})
 
 	// Get the bucket location
-	bucketLocationOutput, err := client.GetBucketLocation(context.TODO(), &s3.GetBucketLocationInput{
-		Bucket: aws.String(bucket),
-	})
-	if err != nil {
-		return 1, err
+	if endpointURL == "" {
+		bucketLocationOutput, err := client.GetBucketLocation(context.TODO(), &s3.GetBucketLocationInput{
+			Bucket: aws.String(bucket),
+		})
+		if err != nil {
+			return 1, err
+		}
+		bucketRegion := normalizeBucketLocation(bucketLocationOutput.LocationConstraint)
+		client = s3.NewFromConfig(cfg, func(o *s3.Options) {
+			o.Region = bucketRegion
+		})
 	}
-	bucketRegion := normalizeBucketLocation(bucketLocationOutput.LocationConstraint)
-	client = s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.Region = bucketRegion
-	})
 
 	// Abort if the object already exists
 	_, err = client.HeadObject(context.TODO(), &s3.HeadObjectInput{

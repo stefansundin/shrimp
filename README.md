@@ -35,6 +35,8 @@ S3Uri must have the format s3://<bucketname>/<key>.
 Parameters:
   -bwlimit string
     	Bandwidth limit. (e.g. "2.5m")
+  -ca-bundle string
+    	The CA certificate bundle to use when verifying SSL certificates.
   -cache-control string
     	Specifies caching behavior for the object.
   -content-disposition string
@@ -45,10 +47,14 @@ Parameters:
     	Specifies the language the content is in.
   -content-type string
     	A standard MIME type describing the format of the object data.
+  -endpoint-url string
+    	Override the S3 endpoint URL. (for use with S3 compatible APIs)
   -expected-bucket-owner string
     	The account ID of the expected bucket owner.
   -metadata string
     	A map of metadata to store with the object in S3. (JSON syntax is not supported)
+  -no-verify-ssl
+    	Do not verify SSL certificates.
   -part-size string
     	Override automatic part size. (e.g. "128m")
   -profile string
