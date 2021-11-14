@@ -7,7 +7,6 @@ Features:
 - shrimp supports automatically attaching SHA256 checksums to the object metadata if a `SHA256SUMS` file present in the working directory. You can use [s3sha256sum](https://github.com/stefansundin/s3sha256sum) to verify the object after it has been uploaded. [See here for more information.](https://github.com/stefansundin/s3sha256sum/discussions/1)
 
 TODO:
-- MFA support.
 - Automatically change bandwidth limit on a schedule.
 
 Keep in mind:
