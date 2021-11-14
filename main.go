@@ -54,6 +54,7 @@ func main() {
 func run() (int, error) {
 	var profile, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
 	var noVerifySsl, noSignRequest, debug, versionFlag bool
+	var mfaDuration time.Duration
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
 	flag.StringVar(&partSizeRaw, "part-size", "", "Override automatic part size. (e.g. \"128m\")")
@@ -68,6 +69,7 @@ func run() (int, error) {
 	flag.StringVar(&tagging, "tagging", "", "The tag-set for the object. The tag-set must be encoded as URL Query parameters.")
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\")")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
+	flag.DurationVar(&mfaDuration, "mfa-duration", time.Hour, "MFA duration. shrimp will prompt for another code after this duration. (max \"12h\")")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
 	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work if used with AWS, but may work with other S3 APIs.")
 	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
@@ -110,6 +112,9 @@ func run() (int, error) {
 	if endpointURL != "" && !strings.HasPrefix(endpointURL, "http://") && !strings.HasPrefix(endpointURL, "https://") {
 		fmt.Fprintln(os.Stderr, "Error: the endpoint URL must start with http:// or https://.")
 		return 1, nil
+	}
+	if mfaDuration > 12*time.Hour {
+		fmt.Println("Warning: MFA duration can not exceed 12 hours.")
 	}
 	file := flag.Arg(0)
 	bucket, key := parseS3Uri(flag.Arg(1))
@@ -269,6 +274,7 @@ func run() (int, error) {
 			return nil
 		},
 		config.WithAssumeRoleCredentialOptions(func(o *stscreds.AssumeRoleOptions) {
+			o.Duration = mfaDuration
 			o.TokenProvider = stscreds.StdinTokenProvider
 		}),
 	)
