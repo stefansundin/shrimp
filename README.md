@@ -67,7 +67,7 @@ Parameters:
   -profile string
     	Use a specific profile from your credential file.
   -storage-class string
-    	Storage class. (e.g. "STANDARD" or "DEEP_ARCHIVE")
+    	Storage class. Known values: STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE, OUTPOSTS.
   -tagging string
     	The tag-set for the object. The tag-set must be encoded as URL Query parameters.
   -version

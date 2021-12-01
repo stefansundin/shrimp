@@ -70,7 +70,7 @@ func run() (int, error) {
 	flag.StringVar(&contentType, "content-type", "", "A standard MIME type describing the format of the object data.")
 	flag.StringVar(&expectedBucketOwner, "expected-bucket-owner", "", "The account ID of the expected bucket owner.")
 	flag.StringVar(&tagging, "tagging", "", "The tag-set for the object. The tag-set must be encoded as URL Query parameters.")
-	flag.StringVar(&storageClass, "storage-class", "", "Storage class. (e.g. \"STANDARD\" or \"DEEP_ARCHIVE\")")
+	flag.StringVar(&storageClass, "storage-class", "", "Storage class. Known values: "+strings.Join(knownStorageClasses(), ", ")+".")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
 	flag.DurationVar(&mfaDuration, "mfa-duration", time.Hour, "MFA duration. shrimp will prompt for another code after this duration. (max \"12h\")")
 	flag.BoolVar(&mfaSecretFlag, "mfa-secret", false, "Provide the MFA secret and shrimp will automatically generate TOTP codes. (useful if the upload takes longer than the allowed assume role duration)")
@@ -184,11 +184,7 @@ func run() (int, error) {
 		createMultipartUploadInput.Tagging = aws.String(tagging)
 	}
 	if storageClass != "" {
-		if v, err := validStorageClass(storageClass); err == nil {
-			createMultipartUploadInput.StorageClass = v
-		} else {
-			return 1, err
-		}
+		createMultipartUploadInput.StorageClass = s3Types.StorageClass(storageClass)
 	}
 	if metadata != "" {
 		if m, err := parseMetadata(metadata); err == nil {

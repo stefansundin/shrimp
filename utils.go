@@ -172,15 +172,13 @@ func getSha256Sum(sumsFn string, entryPath string) (string, error) {
 	return "", nil
 }
 
-func validStorageClass(s string) (s3Types.StorageClass, error) {
-	sc := s3Types.StorageClass(s)
-	values := sc.Values()
-	for _, v := range values {
-		if v == sc {
-			return v, nil
-		}
+func knownStorageClasses() []string {
+	values := s3Types.StorageClassStandard.Values()
+	result := make([]string, len(values))
+	for i, v := range values {
+		result[i] = string(v)
 	}
-	return sc, errors.New(fmt.Sprintf("Invalid storage class. Supported values: %v", values))
+	return result
 }
 
 // https://github.com/aws/aws-sdk-go/blob/e2d6cb448883e4f4fcc5246650f89bde349041ec/service/s3/bucket_location.go#L15-L32
