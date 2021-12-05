@@ -28,6 +28,15 @@ func min(a, b int64) int64 {
 	return a
 }
 
+func isNumeric(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func parseS3Uri(s string) (string, string) {
 	if !strings.HasPrefix(s, "s3://") {
 		return "", ""

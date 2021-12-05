@@ -270,6 +270,9 @@ func run() (int, error) {
 	}
 
 	// Initialize the AWS SDK
+	var promptingForMfa bool
+	var mfaReader io.Reader = os.Stdin
+	var mfaWriter io.Writer
 	cfg, err := config.LoadDefaultConfig(
 		context.TODO(),
 		func(o *config.LoadOptions) error {
@@ -301,10 +304,20 @@ func run() (int, error) {
 		},
 		config.WithAssumeRoleCredentialOptions(func(o *stscreds.AssumeRoleOptions) {
 			o.Duration = mfaDuration
-			if mfaSecret == nil {
-				o.TokenProvider = stscreds.StdinTokenProvider
-			} else {
-				o.TokenProvider = func() (string, error) {
+			o.TokenProvider = func() (string, error) {
+				if mfaSecret == nil {
+					promptingForMfa = true
+					for {
+						fmt.Printf("Assume Role MFA token code: ")
+						var code string
+						_, err = fmt.Fscanln(mfaReader, &code)
+						if len(code) == 6 && isNumeric(code) {
+							promptingForMfa = false
+							return code, err
+						}
+						fmt.Println("Code must consist of 6 digits. Please try again.")
+					}
+				} else {
 					t := time.Now().UTC()
 					period := 30
 					counter := uint64(math.Floor(float64(t.Unix()) / float64(period)))
@@ -469,13 +482,31 @@ func run() (int, error) {
 		fmt.Fprintln(os.Stderr, err)
 	}
 	// Send characters from stdin to a channel
+	mfaReader, mfaWriter = io.Pipe()
 	stdinInput := make(chan rune, 1)
 	go func() {
 		stdinReader := bufio.NewReader(os.Stdin)
+		var mfaCode string
 		for {
 			char, _, err := stdinReader.ReadRune()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
+			}
+			if promptingForMfa {
+				// This code is only used if the user is prompted for MFA after the upload has started (i.e. after the terminal has been configured)
+				// This looks a bit awkward but it is necessary since it is harder to reset the terminal and put back the rune that we already read
+				if char >= '0' && char <= '9' {
+					mfaCode += string(char)
+					fmt.Print(string(char))
+				} else if char == 127 && len(mfaCode) > 0 {
+					mfaCode = mfaCode[:len(mfaCode)-1]
+					fmt.Print("\b\033[J")
+				} else if char == '\n' {
+					fmt.Println()
+					mfaWriter.Write([]byte(mfaCode + "\n"))
+					mfaCode = ""
+				}
+				continue
 			}
 			stdinInput <- char
 		}
@@ -660,6 +691,10 @@ func run() (int, error) {
 				} else if r == terminal.EnterKey {
 					fmt.Println()
 				}
+			}
+
+			for promptingForMfa {
+				time.Sleep(time.Second)
 			}
 
 			s = reader.Status()
