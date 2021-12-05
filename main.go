@@ -498,10 +498,10 @@ func run() (int, error) {
 				if char >= '0' && char <= '9' {
 					mfaCode += string(char)
 					fmt.Print(string(char))
-				} else if char == 127 && len(mfaCode) > 0 {
+				} else if (char == 127 || char == '\b') && len(mfaCode) > 0 {
 					mfaCode = mfaCode[:len(mfaCode)-1]
 					fmt.Print("\b\033[J")
-				} else if char == '\n' {
+				} else if char == '\n' || char == '\r' {
 					fmt.Println()
 					mfaWriter.Write([]byte(mfaCode + "\n"))
 					mfaCode = ""
