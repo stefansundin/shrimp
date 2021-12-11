@@ -126,9 +126,9 @@ func run() (int, error) {
 		if ok {
 			fmt.Println("MFA secret read from AWS_MFA_SECRET.")
 		} else {
-			fmt.Printf("MFA secret: ")
+			fmt.Print("MFA secret: ")
 			_, err := fmt.Scanln(&secret)
-			fmt.Printf("\033[1A\033[2K") // erase the line
+			fmt.Print("\033[1A\033[2K") // erase the line
 			if err != nil {
 				return 1, err
 			}
@@ -313,7 +313,7 @@ func run() (int, error) {
 				if mfaSecret == nil {
 					promptingForMfa = true
 					for {
-						fmt.Printf("Assume Role MFA token code: ")
+						fmt.Print("Assume Role MFA token code: ")
 						var code string
 						_, err = fmt.Fscanln(mfaReader, &code)
 						if len(code) == 6 && isNumeric(code) {
@@ -602,12 +602,12 @@ func run() (int, error) {
 				if r == 'u' {
 					rate = 0
 					reader.SetLimit(rate)
-					fmt.Printf("\nUnlimited transfer rate.\n")
+					fmt.Print("\nUnlimited transfer rate.\n")
 				} else if r == 'r' {
 					rate = initialRate
 					reader.SetLimit(rate)
 					if rate == 0 {
-						fmt.Printf("\nUnlimited transfer rate.")
+						fmt.Print("\nUnlimited transfer rate.")
 					} else {
 						fmt.Printf("\nTransfer limit set to: %s/s.", formatSize(rate))
 					}
@@ -671,7 +671,7 @@ func run() (int, error) {
 						}
 						reader.SetLimit(rate)
 						if rate == 0 {
-							fmt.Printf("\nUnlimited transfer rate.")
+							fmt.Print("\nUnlimited transfer rate.")
 						} else {
 							fmt.Printf("\nTransfer limit set to: %s/s.", formatSize(rate))
 						}
