@@ -185,6 +185,11 @@ func run() (int, error) {
 	}
 	if storageClass != "" {
 		createMultipartUploadInput.StorageClass = s3Types.StorageClass(storageClass)
+		if createMultipartUploadInput.StorageClass == s3Types.StorageClassReducedRedundancy {
+			fmt.Println("Warning: REDUCED_REDUNDANCY is not recommended for use. It no longer has any cost benefits over STANDARD.")
+			fmt.Println("Press enter to continue anyway.")
+			fmt.Scanln()
+		}
 	}
 	if metadata != "" {
 		if m, err := parseMetadata(metadata); err == nil {
