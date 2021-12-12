@@ -55,7 +55,7 @@ func main() {
 
 func run() (int, error) {
 	var profile, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
-	var noVerifySsl, noSignRequest, mfaSecretFlag, debug, versionFlag bool
+	var noVerifySsl, noSignRequest, mfaSecretFlag, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
@@ -76,6 +76,7 @@ func run() (int, error) {
 	flag.BoolVar(&mfaSecretFlag, "mfa-secret", false, "Provide the MFA secret and shrimp will automatically generate TOTP codes. (useful if the upload takes longer than the allowed assume role duration)")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
 	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work if used with AWS, but may work with other S3 APIs.")
+	flag.BoolVar(&dryrun, "dryrun", false, "Checks if the upload was started previously and how much was completed. (use in combination with -bwlimit to calculate remaining time)")
 	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
 	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
 	flag.Usage = func() {
@@ -187,8 +188,12 @@ func run() (int, error) {
 		createMultipartUploadInput.StorageClass = s3Types.StorageClass(storageClass)
 		if createMultipartUploadInput.StorageClass == s3Types.StorageClassReducedRedundancy {
 			fmt.Println("Warning: REDUCED_REDUNDANCY is not recommended for use. It no longer has any cost benefits over STANDARD.")
-			fmt.Println("Press enter to continue anyway.")
-			fmt.Scanln()
+			if dryrun {
+				fmt.Println()
+			} else {
+				fmt.Println("Press enter to continue anyway.")
+				fmt.Scanln()
+			}
 		}
 	}
 	if metadata != "" {
@@ -422,14 +427,18 @@ func run() (int, error) {
 	var partNumber int32 = 1
 	var offset int64
 	if uploadId == "" {
-		fmt.Println("Creating multipart upload.")
-		outputCreateMultipartUpload, err := client.CreateMultipartUpload(context.TODO(), &createMultipartUploadInput)
-		if err != nil {
-			return 1, err
-		}
+		if dryrun {
+			fmt.Println("Upload not started.")
+		} else {
+			fmt.Println("Creating multipart upload.")
+			outputCreateMultipartUpload, err := client.CreateMultipartUpload(context.TODO(), &createMultipartUploadInput)
+			if err != nil {
+				return 1, err
+			}
 
-		uploadId = *outputCreateMultipartUpload.UploadId
-		fmt.Printf("Upload id: %v\n", uploadId)
+			uploadId = *outputCreateMultipartUpload.UploadId
+			fmt.Printf("Upload id: %v\n", uploadId)
+		}
 	} else {
 		paginatorListParts := s3.NewListPartsPaginator(client, &s3.ListPartsInput{
 			Bucket:   aws.String(bucket),
@@ -478,6 +487,17 @@ func run() (int, error) {
 			fmt.Println("Error: size of parts already uploaded is greater than local file size.")
 			return 1, nil
 		}
+		fmt.Printf("%s remaining.\n", formatFilesize(fileSize-offset))
+	}
+
+	if dryrun {
+		if rate != 0 {
+			bytesRemaining := fileSize - offset
+			ns := float64(bytesRemaining) / float64(rate) * 1e9
+			timeRemaining := time.Duration(ns).Round(time.Second)
+			fmt.Printf("\nCompleting the upload at %s/s will take %s.\n", formatSize(rate), timeRemaining)
+		}
+		return 0, nil
 	}
 
 	// Attempt to configure the terminal so that single characters can be read from stdin
