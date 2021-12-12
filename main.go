@@ -54,11 +54,12 @@ func main() {
 }
 
 func run() (int, error) {
-	var profile, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
+	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
 	var noVerifySsl, noSignRequest, mfaSecretFlag, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
+	flag.StringVar(&region, "region", "", "The bucket region. Avoids one API call.")
 	flag.StringVar(&bwlimit, "bwlimit", "", "Bandwidth limit. (e.g. \"2.5m\")")
 	flag.StringVar(&partSizeRaw, "part-size", "", "Override automatic part size. (e.g. \"128m\")")
 	flag.StringVar(&endpointURL, "endpoint-url", "", "Override the S3 endpoint URL. (for use with S3 compatible APIs)")
@@ -351,6 +352,9 @@ func run() (int, error) {
 			if noSignRequest {
 				o.Credentials = aws.AnonymousCredentials{}
 			}
+			if region != "" {
+				o.Region = region
+			}
 			if endpointURL != "" {
 				o.EndpointResolver = s3.EndpointResolverFromURL(endpointURL)
 				o.UsePathStyle = true
@@ -359,7 +363,7 @@ func run() (int, error) {
 	encryptedEndpoint := (endpointURL == "" || strings.HasPrefix(endpointURL, "https://"))
 
 	// Get the bucket location
-	if endpointURL == "" {
+	if endpointURL == "" && region == "" {
 		bucketLocationOutput, err := client.GetBucketLocation(context.TODO(), &s3.GetBucketLocationInput{
 			Bucket: aws.String(bucket),
 		})
@@ -367,6 +371,9 @@ func run() (int, error) {
 			return 1, err
 		}
 		bucketRegion := normalizeBucketLocation(bucketLocationOutput.LocationConstraint)
+		if debug {
+			fmt.Printf("Bucket region: %s\n", bucketRegion)
+		}
 		client = s3.NewFromConfig(cfg, func(o *s3.Options) {
 			if noSignRequest {
 				o.Credentials = aws.AnonymousCredentials{}

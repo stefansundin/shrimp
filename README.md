@@ -68,6 +68,8 @@ Parameters:
     	Override automatic part size. (e.g. "128m")
   -profile string
     	Use a specific profile from your credential file.
+  -region string
+    	The bucket region. Avoids one API call.
   -storage-class string
     	Storage class. Known values: STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE, OUTPOSTS, GLACIER_IR.
   -tagging string
