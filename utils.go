@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 const kiB = 1024
@@ -197,6 +198,14 @@ func normalizeBucketLocation(loc s3Types.BucketLocationConstraint) string {
 		return "us-east-1"
 	}
 	return string(loc)
+}
+
+func isSmithyErrorCode(err error, code int) bool {
+	var re *smithyhttp.ResponseError
+	if errors.As(err, &re) && re.HTTPStatusCode() == code {
+		return true
+	}
+	return false
 }
 
 func generateOTP(secretBytes []byte, counter uint64, hashAlg func() hash.Hash, digits int) (string, error) {

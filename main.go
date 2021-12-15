@@ -383,13 +383,15 @@ func run() (int, error) {
 	}
 
 	// Abort if the object already exists
-	_, err = client.HeadObject(context.TODO(), &s3.HeadObjectInput{
+	obj, err := client.HeadObject(context.TODO(), &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
-	if err == nil {
-		fmt.Println("The object already exists in the S3 bucket. Please delete it first.")
-		return 1, nil
+	if obj != nil || err == nil || !isSmithyErrorCode(err, 404) {
+		if obj != nil {
+			fmt.Println("The object already exists in the S3 bucket. Please delete it first.")
+		}
+		return 1, err
 	}
 
 	// Check if we should resume an upload
