@@ -349,6 +349,9 @@ func run() (int, error) {
 	}
 	client := s3.NewFromConfig(cfg,
 		func(o *s3.Options) {
+			if v, ok := os.LookupEnv("AWS_USE_DUALSTACK_ENDPOINT"); !ok || v != "false" {
+				o.EndpointOptions.UseDualStackEndpoint = aws.DualStackEndpointStateEnabled
+			}
 			if noSignRequest {
 				o.Credentials = aws.AnonymousCredentials{}
 			}
@@ -375,6 +378,9 @@ func run() (int, error) {
 			fmt.Printf("Bucket region: %s\n", bucketRegion)
 		}
 		client = s3.NewFromConfig(cfg, func(o *s3.Options) {
+			if v, ok := os.LookupEnv("AWS_USE_DUALSTACK_ENDPOINT"); !ok || v != "false" {
+				o.EndpointOptions.UseDualStackEndpoint = aws.DualStackEndpointStateEnabled
+			}
 			if noSignRequest {
 				o.Credentials = aws.AnonymousCredentials{}
 			}
