@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"time"
@@ -50,6 +51,20 @@ func main() {
 	if oldTerminalState != nil {
 		terminal.RestoreTerminal(oldTerminalState)
 	}
+
+	// Write heap profile
+	f, err := os.Create("shrimp-heap-" + fmt.Sprint(time.Now().Unix()) + ".prof")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(exitCode)
+	}
+	defer f.Close()
+	runtime.GC()
+	err = pprof.WriteHeapProfile(f)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+
 	os.Exit(exitCode)
 }
 
