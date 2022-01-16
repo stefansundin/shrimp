@@ -261,7 +261,10 @@ func run() (int, error) {
 	fmt.Println()
 
 	// Open the file
-	f, _ := os.Open(file)
+	f, err := os.Open(file)
+	if err != nil {
+		return 1, err
+	}
 	defer f.Close()
 
 	// Look for a SHA256SUMS file and get this file's hash
@@ -604,6 +607,9 @@ func run() (int, error) {
 		partStartTime := time.Now()
 		partData := make([]byte, min(partSize, fileSize-offset))
 		n, err := f.ReadAt(partData, offset)
+		if int64(n) != size {
+			return 1, errors.New("Bad file read.")
+		}
 		if err != nil && err != io.EOF {
 			return 1, err
 		}
