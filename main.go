@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/sha1"
 	"crypto/tls"
@@ -608,17 +607,13 @@ func run() (int, error) {
 
 		var s flowrate.Status
 		partStartTime := time.Now()
-		partData := make([]byte, min(partSize, fileSize-offset))
-		n, err := f.ReadAt(partData, offset)
-		if int64(n) != size {
-			return 1, errors.New("Bad file read.")
-		}
-		if err != nil && err != io.EOF {
-			return 1, err
-		}
-
-		reader := flowrate.NewReader(bytes.NewReader(partData), rate, !encryptedEndpoint)
-		reader.SetTransferSize(int64(len(partData)))
+		size := min(partSize, fileSize-offset)
+		reader := flowrate.NewReader(
+			io.NewSectionReader(f, offset, size),
+			rate,
+			!encryptedEndpoint,
+		)
+		reader.SetTransferSize(size)
 		reader.SetTotal(offset, fileSize)
 
 		// Start the upload in a go routine
@@ -770,7 +765,7 @@ func run() (int, error) {
 				ETag:       uploadPart.ETag,
 				PartNumber: partNumber,
 			})
-			offset += int64(n)
+			offset += size
 			partNumber += 1
 		} else {
 			fmt.Fprintln(os.Stderr)
