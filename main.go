@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -589,6 +590,8 @@ func run() (int, error) {
 	fmt.Println("Tip: Press ? to see the available keyboard controls.")
 
 	for offset < fileSize {
+		runtime.GC()
+
 		for paused {
 			waitingToUnpause = true
 			if interrupted {
