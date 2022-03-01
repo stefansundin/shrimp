@@ -1,0 +1,23 @@
+# Example schedule file. Use "-schedule filename.txt" to use feature.
+# See https://github.com/stefansundin/shrimp/discussions/4
+
+# Lines starting with "#" are ignored.
+# The schedule can include a default bandwidth limit (if omitted then unlimited is the default).
+# The -bwlimit switch overrides the default value specified here.
+# After the default, define a number of non-overlapping ranges that override the default.
+
+# The format is:
+# <weekday or weekday-range> <time-range>: <bwlimit>
+# A "weekday" can be "mon", "tue", "wed", "thu", "fri", "sat", "sun", or their full names ("monday", "tuesday", etc).
+# A "weekday-range", e.g. "mon-fri", applies the same rule to all days monday through friday.
+# "time-range" is the time range that the bandwidth limit should apply, in 24 hour format, with leading zeroes if necessary.
+# "bwlimit" is either "unlimited" or a fractional value ending with "k" or "m".
+
+default: unlimited
+mon-fri 0800-1800: 200k
+sat 0600-1000: 800k
+sat 1000-1830: 400k
+sat 1830-2300: 800k
+sun 0600-0900: 750k
+sun 0900-1300: 250k
+sun 1300-2000: 750k
