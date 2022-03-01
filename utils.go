@@ -68,6 +68,10 @@ func parseS3Uri(s string) (string, string) {
 }
 
 func parseRate(s string) (int64, error) {
+	if s == "unlimited" {
+		return 0, nil
+	}
+
 	factor := 1
 	suffix := s[len(s)-1]
 	if suffix == 'k' || suffix == 'K' {
