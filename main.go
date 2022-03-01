@@ -32,8 +32,6 @@ import (
 
 const version = "0.0.1"
 
-var oldTerminalState *terminal.State
-
 func init() {
 	// Do not fail if a region is not specified anywhere
 	// This is only used for the first call that looks up the bucket region
@@ -46,9 +44,6 @@ func main() {
 	exitCode, err := run()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-	}
-	if oldTerminalState != nil {
-		terminal.RestoreTerminal(oldTerminalState)
 	}
 	os.Exit(exitCode)
 }
@@ -559,11 +554,14 @@ func run() (int, error) {
 	}
 
 	// Attempt to configure the terminal so that single characters can be read from stdin
-	oldTerminalState, err = terminal.ConfigureTerminal()
+	oldTerminalState, err := terminal.ConfigureTerminal()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Warning: could not configure terminal. You have to use the enter key after each keyboard input.")
 		fmt.Fprintln(os.Stderr, err)
 	}
+	defer func() {
+		terminal.RestoreTerminal(oldTerminalState)
+	}()
 	// Send characters from stdin to a channel
 	mfaReader, mfaWriter = io.Pipe()
 	stdinInput := make(chan rune, 1)
