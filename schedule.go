@@ -201,16 +201,20 @@ func (block ScheduleBlock) next() (time.Time, time.Time) {
 	now := time.Now()
 	today := now.Weekday()
 	days := int(block.weekday-today+7) % 7
-
-	if today == block.weekday &&
-		(block.endHour < now.Hour() ||
-			(block.endHour == now.Hour() && block.endMinute <= now.Minute())) {
-		days += 7
-	}
-
 	t := now.AddDate(0, 0, days)
 	start := time.Date(t.Year(), t.Month(), t.Day(), block.startHour, block.startMinute, 0, 0, t.Location())
 	end := time.Date(t.Year(), t.Month(), t.Day(), block.endHour, block.endMinute, 0, 0, t.Location())
+
+	// Add a week if the time has already passed this week
+	// This also accounts for DST (the actual time may be different after constructing the time object) 😱
+	if end.Before(start) {
+		end = end.Add(time.Hour)
+	}
+	if now.After(end) {
+		t = t.AddDate(0, 0, 7)
+		start = time.Date(t.Year(), t.Month(), t.Day(), block.startHour, block.startMinute, 0, 0, t.Location())
+		end = time.Date(t.Year(), t.Month(), t.Day(), block.endHour, block.endMinute, 0, 0, t.Location())
+	}
 
 	return start, end
 }
