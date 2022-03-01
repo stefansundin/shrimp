@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -175,8 +178,11 @@ func formatLimit2(rate int64) string {
 	return fmt.Sprintf("%s/s", formatSize(rate))
 }
 
-func getSha256Sum(sumsFn string, entryPath string) (string, error) {
-	entryPath, err := filepath.Abs(entryPath)
+func lookupChecksum(sumsFn string, fn string) (string, error) {
+	entryPath, err := filepath.Abs(fn)
+	if err != nil {
+		return "", err
+	}
 
 	file, err := os.Open(sumsFn)
 	if err != nil {
@@ -206,6 +212,21 @@ func getSha256Sum(sumsFn string, entryPath string) (string, error) {
 	}
 
 	return "", nil
+}
+
+func computeSha256Sum(fn string) (string, error) {
+	file, err := os.Open(fn)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		return "", err
+	}
+	sum := hex.EncodeToString(hash.Sum(nil))
+	return sum, nil
 }
 
 func knownStorageClasses() []string {

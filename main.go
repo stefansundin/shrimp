@@ -55,7 +55,7 @@ func main() {
 
 func run() (int, error) {
 	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
-	var noVerifySsl, noSignRequest, mfaSecretFlag, dryrun, debug, versionFlag bool
+	var computeChecksum, noVerifySsl, noSignRequest, mfaSecretFlag, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
@@ -76,6 +76,7 @@ func run() (int, error) {
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
 	flag.DurationVar(&mfaDuration, "mfa-duration", time.Hour, "MFA duration. shrimp will prompt for another code after this duration. (max \"12h\")")
 	flag.BoolVar(&mfaSecretFlag, "mfa-secret", false, "Provide the MFA secret and shrimp will automatically generate TOTP codes. (useful if the upload takes longer than the allowed assume role duration)")
+	flag.BoolVar(&computeChecksum, "compute-checksum", false, "Compute checksum and add to SHA256SUMS file.")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
 	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work with Amazon S3, but may work with other S3 APIs.")
 	flag.BoolVar(&dryrun, "dryrun", false, "Checks if the upload was started previously and how much was completed. (use in combination with -bwlimit to calculate remaining time)")
@@ -284,17 +285,42 @@ func run() (int, error) {
 	// Look for a SHA256SUMS file and get this file's hash
 	_, err = os.Stat("SHA256SUMS")
 	if !errors.Is(err, fs.ErrNotExist) {
-		sum, err := getSha256Sum("SHA256SUMS", file)
+		sum, err := lookupChecksum("SHA256SUMS", file)
 		if err != nil {
 			return 1, err
 		} else if sum == "" {
-			fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file.")
+			if !computeChecksum {
+				fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file. Consider using -compute-checksum.")
+			}
 		} else {
 			if createMultipartUploadInput.Metadata == nil {
 				createMultipartUploadInput.Metadata = make(map[string]string)
 			}
 			createMultipartUploadInput.Metadata["sha256sum"] = sum
 		}
+	}
+	if computeChecksum && createMultipartUploadInput.Metadata["sha256sum"] == "" {
+		fmt.Fprintln(os.Stderr, "Computing checksum...")
+		sum, err := computeSha256Sum(file)
+		if err != nil {
+			return 1, err
+		}
+		if createMultipartUploadInput.Metadata == nil {
+			createMultipartUploadInput.Metadata = make(map[string]string)
+		}
+		createMultipartUploadInput.Metadata["sha256sum"] = sum
+		fmt.Fprintln(os.Stderr, "Adding checksum to SHA256SUMS...")
+		sumsFile, err := os.OpenFile("SHA256SUMS", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			return 1, err
+		}
+		defer sumsFile.Close()
+		line := fmt.Sprintf("%s  %s\n", sum, file)
+		_, err = sumsFile.WriteString(line)
+		if err != nil {
+			return 1, err
+		}
+		fmt.Println()
 	}
 
 	// Initialize the AWS SDK

@@ -5,7 +5,7 @@ Features:
 - shrimp has interactive keyboard controls that lets you limit the bandwidth used for the upload (you can specify an initial limit with `-bwlimit`, e.g. `-bwlimit=2.5m` for 2.5 MB/s). While the upload is in progress, press <kbd>?</kbd> to see the available keyboard controls.
 - shrimp can automatically adjust the bandwidth limit based on a schedule. [See here for more information.](https://github.com/stefansundin/s3sha256sum/discussions/4)
 - shrimp can resume the upload in case it fails for whatever reason (just re-run the command). Unlike the aws cli, shrimp will never abort the multipart upload in case of failures ([please set up a lifecycle policy for this!](https://aws.amazon.com/blogs/aws-cloud-financial-management/discovering-and-deleting-incomplete-multipart-uploads-to-lower-amazon-s3-costs/)).
-- shrimp supports automatically attaching SHA256 checksums to the object metadata if a `SHA256SUMS` file is present in the working directory. You can use [s3sha256sum](https://github.com/stefansundin/s3sha256sum) to verify the object after it has been uploaded. [See here for more information.](https://github.com/stefansundin/s3sha256sum/discussions/1)
+- shrimp supports automatically attaching SHA256 checksums to the object metadata if a `SHA256SUMS` file is present in the working directory. Use `-compute-checksum` if you want shrimp to calculate the checksum and add it to the `SHA256SUMS` file. You can use [s3sha256sum](https://github.com/stefansundin/s3sha256sum) to verify the object after it has been uploaded. [See here for more information.](https://github.com/stefansundin/s3sha256sum/discussions/1)
 
 Keep in mind:
 - shrimp will always use a multipart upload, so do not use it for small files.
@@ -36,6 +36,8 @@ Parameters:
     	The CA certificate bundle to use when verifying SSL certificates.
   -cache-control string
     	Specifies caching behavior for the object.
+  -compute-checksum
+    	Compute checksum and add to SHA256SUMS file.
   -content-disposition string
     	Specifies presentational information for the object.
   -content-encoding string
