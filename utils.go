@@ -30,6 +30,13 @@ func min(a, b int64) int64 {
 	return a
 }
 
+func minDuration(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func niceDuration(d time.Duration) time.Duration {
 	if d < time.Second {
 		return d.Round(time.Millisecond)
@@ -155,6 +162,13 @@ func formatLimit(rate int64, parenthesis bool) string {
 		return fmt.Sprintf(" (limit: %s/s)", formatSize(rate))
 	}
 	return fmt.Sprintf(", limit: %s/s", formatSize(rate))
+}
+
+func formatLimit2(rate int64) string {
+	if rate == 0 {
+		return "unlimited"
+	}
+	return fmt.Sprintf("%s/s", formatSize(rate))
 }
 
 func getSha256Sum(sumsFn string, entryPath string) (string, error) {

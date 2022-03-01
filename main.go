@@ -54,7 +54,7 @@ func main() {
 }
 
 func run() (int, error) {
-	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
+	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
 	var noVerifySsl, noSignRequest, mfaSecretFlag, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
@@ -64,6 +64,7 @@ func run() (int, error) {
 	flag.StringVar(&partSizeRaw, "part-size", "", "Override automatic part size. (e.g. \"128m\")")
 	flag.StringVar(&endpointURL, "endpoint-url", "", "Override the S3 endpoint URL. (for use with S3 compatible APIs)")
 	flag.StringVar(&caBundle, "ca-bundle", "", "The CA certificate bundle to use when verifying SSL certificates.")
+	flag.StringVar(&scheduleFn, "schedule", "", "Schedule file to use for automatically adjusting the bandwidth limit (see https://github.com/stefansundin/shrimp/discussions/4).")
 	flag.StringVar(&cacheControl, "cache-control", "", "Specifies caching behavior for the object.")
 	flag.StringVar(&contentDisposition, "content-disposition", "", "Specifies presentational information for the object.")
 	flag.StringVar(&contentEncoding, "content-encoding", "", "Specifies what content encodings have been applied to the object.")
@@ -205,15 +206,28 @@ func run() (int, error) {
 		}
 	}
 
-	var rate int64
+	var initialRate int64
 	if bwlimit != "" {
 		var err error
-		rate, err = parseRate(bwlimit)
+		initialRate, err = parseRate(bwlimit)
 		if err != nil {
 			return 1, err
 		}
 	}
-	initialRate := rate
+	var schedule *Schedule
+	if scheduleFn != "" {
+		var err error
+		schedule, err = readSchedule(scheduleFn)
+		if err != nil {
+			return 1, fmt.Errorf("Error loading %s: %w", scheduleFn, err)
+		}
+		if bwlimit != "" {
+			schedule.defaultRate = initialRate
+		} else if schedule.defaultRate != 0 {
+			initialRate = schedule.defaultRate
+		}
+	}
+	rate := initialRate
 
 	// Get the file size
 	// TODO: Check if the file has been modified since the multi part was started and print a warning
@@ -556,6 +570,7 @@ func run() (int, error) {
 	}()
 
 	// Control variables
+	var reader *flowrate.Reader
 	var oldRate int64
 	interrupted := false
 	paused := false
@@ -588,6 +603,50 @@ func run() (int, error) {
 	fmt.Println()
 	fmt.Println("Tip: Press ? to see the available keyboard controls.")
 
+	// Start the scheduler
+	if schedule != nil && len(schedule.blocks) > 0 {
+		block := schedule.next()
+		if block.active() {
+			rate = block.rate
+		}
+
+		go func() {
+			for {
+				block := schedule.next()
+				start, end := block.next()
+
+				for time.Now().Before(start) {
+					time.Sleep(minDuration(time.Minute, start.Sub(time.Now())))
+				}
+
+				if !paused && rate != block.rate {
+					fmt.Printf("\nScheduler: set ratelimit to %s.\n", formatLimit2(block.rate))
+					rate = block.rate
+					if reader != nil {
+						reader.SetLimit(rate)
+					}
+					fmt.Println()
+				}
+
+				for time.Now().Before(end) {
+					time.Sleep(minDuration(time.Minute, end.Sub(time.Now())))
+				}
+
+				// Check if the next block is right after the one we just did, otherwise reset to defaultRate
+				if !paused {
+					block = schedule.next()
+					if block.active() && rate != schedule.defaultRate {
+						fmt.Printf("\nScheduler: reset ratelimit to default (%s).\n", formatLimit2(schedule.defaultRate))
+						rate = schedule.defaultRate
+						if reader != nil {
+							reader.SetLimit(rate)
+						}
+					}
+				}
+			}
+		}()
+	}
+
 	for offset < fileSize {
 		runtime.GC()
 
@@ -608,7 +667,7 @@ func run() (int, error) {
 		var s flowrate.Status
 		partStartTime := time.Now()
 		size := min(partSize, fileSize-offset)
-		reader := flowrate.NewReader(
+		reader = flowrate.NewReader(
 			io.NewSectionReader(f, offset, size),
 			rate,
 			!encryptedEndpoint,
