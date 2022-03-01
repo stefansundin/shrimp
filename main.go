@@ -77,13 +77,13 @@ func run() (int, error) {
 	flag.DurationVar(&mfaDuration, "mfa-duration", time.Hour, "MFA duration. shrimp will prompt for another code after this duration. (max \"12h\")")
 	flag.BoolVar(&mfaSecretFlag, "mfa-secret", false, "Provide the MFA secret and shrimp will automatically generate TOTP codes. (useful if the upload takes longer than the allowed assume role duration)")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
-	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work if used with AWS, but may work with other S3 APIs.")
+	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work with Amazon S3, but may work with other S3 APIs.")
 	flag.BoolVar(&dryrun, "dryrun", false, "Checks if the upload was started previously and how much was completed. (use in combination with -bwlimit to calculate remaining time)")
 	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
 	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "shrimp version %s\n", version)
-		fmt.Fprintln(os.Stderr, "Copyright (C) 2021 Stefan Sundin")
+		fmt.Fprintln(os.Stderr, "Copyright (C) 2022 Stefan Sundin")
 		fmt.Fprintln(os.Stderr, "Website: https://github.com/stefansundin/shrimp")
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "shrimp comes with ABSOLUTELY NO WARRANTY.")
@@ -238,7 +238,7 @@ func run() (int, error) {
 	fileSize := stat.Size()
 	fmt.Printf("File size: %s\n", formatFilesize(fileSize))
 	if fileSize > 5*TiB {
-		fmt.Println("Warning: File size is greater than 5 TiB. At the time of writing 5 TiB is the maximum object size.")
+		fmt.Println("Warning: File size is greater than 5 TiB. At the time of writing 5 TiB is the maximum object size on Amazon S3.")
 		fmt.Println("This program is not stopping you from proceeding in case the limit has been increased, but be warned!")
 	}
 
@@ -664,7 +664,6 @@ func run() (int, error) {
 			}
 		}
 
-		var s flowrate.Status
 		partStartTime := time.Now()
 		size := min(partSize, fileSize-offset)
 		reader = flowrate.NewReader(
@@ -691,6 +690,7 @@ func run() (int, error) {
 		}()
 
 		// Main loop while the upload is in progress
+		var s flowrate.Status
 		for doneCh != nil {
 			select {
 			case <-doneCh:
