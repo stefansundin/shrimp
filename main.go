@@ -697,7 +697,21 @@ func run() (int, error) {
 				doneCh = nil
 			case <-time.After(time.Second):
 			case r := <-stdinInput:
-				if r == 'u' {
+				if r == 'i' {
+					fmt.Println()
+					fmt.Println()
+					fmt.Printf("Uploading %s to %s\n", flag.Arg(0), flag.Arg(1))
+					fmt.Printf("File size: %s\n", formatFilesize(fileSize))
+					fmt.Printf("Part size: %s\n", formatFilesize(partSize))
+					if storageClass != "" {
+						fmt.Printf("Storage class: %s\n", storageClass)
+					}
+					if scheduleFn != "" {
+						fmt.Printf("Schedule: %s\n", scheduleFn)
+					}
+					fmt.Printf("Currently uploading part %d out of %d.\n", partNumber, int64(math.Ceil(float64(fileSize)/float64(partSize))))
+					fmt.Println()
+				} else if r == 'u' {
 					rate = 0
 					reader.SetLimit(rate)
 					fmt.Print("\nUnlimited transfer rate.\n")
@@ -781,6 +795,7 @@ func run() (int, error) {
 				} else if r == '?' {
 					fmt.Println()
 					fmt.Println()
+					fmt.Println("i       - print information about the upload")
 					fmt.Println("u       - set to unlimited transfer rate")
 					fmt.Println("r       - restore initial transfer limit (from -bwlimit)")
 					fmt.Println("a s d f - increase transfer limit by 1, 10, 100, or 250 kB/s")
