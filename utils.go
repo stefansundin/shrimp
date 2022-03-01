@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -27,6 +28,13 @@ func min(a, b int64) int64 {
 		return b
 	}
 	return a
+}
+
+func niceDuration(d time.Duration) time.Duration {
+	if d < time.Second {
+		return d.Round(time.Millisecond)
+	}
+	return d.Round(time.Second)
 }
 
 func isNumeric(s string) bool {

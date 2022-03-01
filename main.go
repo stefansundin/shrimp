@@ -747,12 +747,7 @@ func run() (int, error) {
 
 		// Part upload has completed or failed
 		if uploadErr == nil {
-			timeElapsed := time.Since(partStartTime)
-			if timeElapsed < time.Second {
-				timeElapsed = timeElapsed.Round(time.Millisecond)
-			} else {
-				timeElapsed = timeElapsed.Round(time.Second)
-			}
+			timeElapsed := niceDuration(time.Since(partStartTime))
 			fmt.Printf("\033[2K\rUploaded part %d in %s (%s/s%s). (total: %s, %s remaining)\n", partNumber, timeElapsed, formatSize(s.CurRate), formatLimit(rate, false), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 
 			// Check if the user wants to stop
