@@ -118,6 +118,14 @@ func parseFilesize(s string) (int64, error) {
 	return int64(math.Round(f * float64(factor))), nil
 }
 
+func jsonMustMarshal(v interface{}) []byte {
+	buf, err := json.Marshal(v)
+	if err != nil {
+		return []byte("json.Marshal error: " + err.Error())
+	}
+	return buf
+}
+
 // Anyone know of a cleaner way to do this? :)
 func jsonMarshalSortedIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	// Uhh.. Marshal and then Unmarshal to sort the keys

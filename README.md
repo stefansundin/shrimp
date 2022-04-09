@@ -38,6 +38,8 @@ Parameters:
     	The CA certificate bundle to use when verifying SSL certificates.
   -cache-control string
     	Specifies caching behavior for the object.
+  -checksum-algorithm string
+    	The checksum algorithm to use for the object. Supported values: CRC32, CRC32C, SHA1, SHA256.
   -compute-checksum
     	Compute checksum and add to SHA256SUMS file.
   -content-disposition string

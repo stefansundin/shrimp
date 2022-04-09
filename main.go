@@ -49,7 +49,7 @@ func main() {
 }
 
 func run() (int, error) {
-	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId string
+	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId, checksumAlgorithm string
 	var bucketKeyEnabled, computeChecksum, noVerifySsl, noSignRequest, useAccelerateEndpoint, usePathStyle, mfaSecretFlag, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
@@ -73,6 +73,7 @@ func run() (int, error) {
 	flag.StringVar(&sseCustomerAlgorithm, "sse-c", "", "Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, -sse-c-key must be specified as well.")
 	flag.StringVar(&sseCustomerKey, "sse-c-key", "", "The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.")
 	flag.StringVar(&sseKmsKeyId, "sse-kms-key-id", "", "The customer-managed AWS Key Management Service (KMS) key ID that should be used to server-side encrypt the object in S3.")
+	flag.StringVar(&checksumAlgorithm, "checksum-algorithm", "", "The checksum algorithm to use for the object. Supported values: CRC32, CRC32C, SHA1, SHA256.")
 	flag.DurationVar(&mfaDuration, "mfa-duration", time.Hour, "MFA duration. shrimp will prompt for another code after this duration. (max \"12h\")")
 	flag.BoolVar(&bucketKeyEnabled, "bucket-key-enabled", false, "Enables use of an S3 Bucket Key for object encryption with server-side encryption using AWS KMS (SSE-KMS).")
 	flag.BoolVar(&mfaSecretFlag, "mfa-secret", false, "Provide the MFA secret and shrimp will automatically generate TOTP codes. (useful if the upload takes longer than the allowed assume role duration)")
@@ -222,6 +223,9 @@ func run() (int, error) {
 	}
 	if bucketKeyEnabled {
 		createMultipartUploadInput.BucketKeyEnabled = true
+	}
+	if checksumAlgorithm != "" {
+		createMultipartUploadInput.ChecksumAlgorithm = s3Types.ChecksumAlgorithm(checksumAlgorithm)
 	}
 
 	var initialRate int64
@@ -538,11 +542,17 @@ func run() (int, error) {
 			}
 			partNumber += int32(len(page.Parts))
 			for _, part := range page.Parts {
-				// fmt.Fprintf(os.Stderr, "Part: {Size: %d, PartNumber: %d, LastModified: %s, ETag: %s}\n", part.Size, part.PartNumber, part.LastModified, *part.ETag)
+				if debug {
+					fmt.Fprintf(os.Stderr, "Part: %s\n", string(jsonMustMarshal(part)))
+				}
 				offset += part.Size
 				parts = append(parts, s3Types.CompletedPart{
-					PartNumber: part.PartNumber,
-					ETag:       part.ETag,
+					PartNumber:     part.PartNumber,
+					ETag:           part.ETag,
+					ChecksumCRC32:  part.ChecksumCRC32,
+					ChecksumCRC32C: part.ChecksumCRC32C,
+					ChecksumSHA1:   part.ChecksumSHA1,
+					ChecksumSHA256: part.ChecksumSHA256,
 				})
 				// Check for potential problems (if not the last part)
 				if offset != fileSize {
@@ -753,7 +763,13 @@ func run() (int, error) {
 			if sseCustomerKey != "" {
 				uploadPartInput.SSECustomerKey = aws.String(sseCustomerKey)
 			}
+			if checksumAlgorithm != "" {
+				uploadPartInput.ChecksumAlgorithm = s3Types.ChecksumAlgorithm(checksumAlgorithm)
+			}
 			uploadPart, uploadErr = client.UploadPart(context.TODO(), uploadPartInput)
+			if debug && uploadPart != nil {
+				fmt.Fprintf(os.Stderr, "Part: %s\n", string(jsonMustMarshal(uploadPart)))
+			}
 		}()
 
 		// Main loop while the upload is in progress
@@ -898,8 +914,12 @@ func run() (int, error) {
 			}
 
 			parts = append(parts, s3Types.CompletedPart{
-				ETag:       uploadPart.ETag,
-				PartNumber: partNumber,
+				PartNumber:     partNumber,
+				ETag:           uploadPart.ETag,
+				ChecksumCRC32:  uploadPart.ChecksumCRC32,
+				ChecksumCRC32C: uploadPart.ChecksumCRC32C,
+				ChecksumSHA1:   uploadPart.ChecksumSHA1,
+				ChecksumSHA256: uploadPart.ChecksumSHA256,
 			})
 			offset += size
 			partNumber += 1
