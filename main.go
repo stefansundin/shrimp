@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base32"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -938,7 +937,7 @@ func run() (int, error) {
 	fmt.Fprintln(os.Stderr)
 
 	// Print the response data from CompleteMultipartUpload as the program's standard output
-	output, err := json.MarshalIndent(completeMultipartUploadOutput, "", "  ")
+	output, err := jsonMarshalSortedIndent(completeMultipartUploadOutput, "", "  ")
 	if err != nil {
 		return 1, err
 	}

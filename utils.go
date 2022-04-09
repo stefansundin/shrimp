@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash"
@@ -115,6 +116,26 @@ func parseFilesize(s string) (int64, error) {
 		return 0, err
 	}
 	return int64(math.Round(f * float64(factor))), nil
+}
+
+// Anyone know of a cleaner way to do this? :)
+func jsonMarshalSortedIndent(v interface{}, prefix, indent string) ([]byte, error) {
+	// Uhh.. Marshal and then Unmarshal to sort the keys
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return []byte{}, err
+	}
+	var data interface{}
+	err = json.Unmarshal(bytes, &data)
+	if err != nil {
+		return []byte{}, err
+	}
+	// Then Marshal again :)
+	output, err := json.MarshalIndent(data, prefix, indent)
+	if err != nil {
+		return []byte{}, err
+	}
+	return output, err
 }
 
 func parseMetadata(s string) (map[string]string, error) {
