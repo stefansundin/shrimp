@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -929,11 +930,19 @@ func run() (int, error) {
 	if sseCustomerKey != "" {
 		completeMultipartUploadInput.SSECustomerKey = aws.String(sseCustomerKey)
 	}
-	_, err = client.CompleteMultipartUpload(context.TODO(), completeMultipartUploadInput)
+	completeMultipartUploadOutput, err := client.CompleteMultipartUpload(context.TODO(), completeMultipartUploadInput)
 	if err != nil {
 		return 1, err
 	}
+	fmt.Fprintln(os.Stderr, "All done!")
+	fmt.Fprintln(os.Stderr)
 
-	fmt.Println("All done!")
+	// Print the response data from CompleteMultipartUpload as the program's standard output
+	output, err := json.MarshalIndent(completeMultipartUploadOutput, "", "  ")
+	if err != nil {
+		return 1, err
+	}
+	fmt.Println(string(output))
+
 	return 0, nil
 }
