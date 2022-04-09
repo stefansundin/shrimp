@@ -86,6 +86,10 @@ Parameters:
     	Storage class. Known values: STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE, OUTPOSTS, GLACIER_IR.
   -tagging string
     	The tag-set for the object. The tag-set must be encoded as URL Query parameters.
+  -use-accelerate-endpoint
+    	Use S3 Transfer Acceleration.
+  -use-path-style
+    	Use S3 Path Style.
   -version
     	Print version number.
 ```

@@ -50,7 +50,7 @@ func main() {
 
 func run() (int, error) {
 	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId string
-	var bucketKeyEnabled, computeChecksum, noVerifySsl, noSignRequest, mfaSecretFlag, dryrun, debug, versionFlag bool
+	var bucketKeyEnabled, computeChecksum, noVerifySsl, noSignRequest, useAccelerateEndpoint, usePathStyle, mfaSecretFlag, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
@@ -79,6 +79,8 @@ func run() (int, error) {
 	flag.BoolVar(&computeChecksum, "compute-checksum", false, "Compute checksum and add to SHA256SUMS file.")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
 	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work with Amazon S3, but may work with other S3 APIs.")
+	flag.BoolVar(&useAccelerateEndpoint, "use-accelerate-endpoint", false, "Use S3 Transfer Acceleration.")
+	flag.BoolVar(&usePathStyle, "use-path-style", false, "Use S3 Path Style.")
 	flag.BoolVar(&dryrun, "dryrun", false, "Checks if the upload was started previously and how much was completed. (use in combination with -bwlimit to calculate remaining time)")
 	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
 	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
@@ -418,7 +420,12 @@ func run() (int, error) {
 			}
 			if endpointURL != "" {
 				o.EndpointResolver = s3.EndpointResolverFromURL(endpointURL)
+			}
+			if usePathStyle {
 				o.UsePathStyle = true
+			}
+			if useAccelerateEndpoint {
+				o.UseAccelerate = true
 			}
 		})
 	encryptedEndpoint := (endpointURL == "" || strings.HasPrefix(endpointURL, "https://"))
@@ -443,6 +450,12 @@ func run() (int, error) {
 				o.Credentials = aws.AnonymousCredentials{}
 			}
 			o.Region = bucketRegion
+			if usePathStyle {
+				o.UsePathStyle = true
+			}
+			if useAccelerateEndpoint {
+				o.UseAccelerate = true
+			}
 		})
 	}
 
