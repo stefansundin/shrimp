@@ -122,22 +122,22 @@ func run() (int, error) {
 		return 1, nil
 	}
 	if mfaDuration > 12*time.Hour {
-		fmt.Println("Warning: MFA duration can not exceed 12 hours.")
+		fmt.Fprintln(os.Stderr, "Warning: MFA duration can not exceed 12 hours.")
 	}
 	if mfaSecretFlag {
-		fmt.Println("Read more about the -mfa-secret feature here: https://github.com/stefansundin/shrimp/discussions/3")
+		fmt.Fprintln(os.Stderr, "Read more about the -mfa-secret feature here: https://github.com/stefansundin/shrimp/discussions/3")
 		secret, ok := os.LookupEnv("AWS_MFA_SECRET")
 		if ok {
-			fmt.Println("MFA secret read from AWS_MFA_SECRET.")
+			fmt.Fprintln(os.Stderr, "MFA secret read from AWS_MFA_SECRET.")
 		} else {
-			fmt.Print("MFA secret: ")
+			fmt.Fprint(os.Stderr, "MFA secret: ")
 			_, err := fmt.Scanln(&secret)
-			fmt.Print("\033[1A\033[2K") // erase the line
+			fmt.Fprint(os.Stderr, "\033[1A\033[2K") // erase the line
 			if err != nil {
 				return 1, err
 			}
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		// Normalize secret
 		secret = strings.TrimSpace(secret)
 		if n := len(secret) % 8; n != 0 {
@@ -190,11 +190,11 @@ func run() (int, error) {
 	if storageClass != "" {
 		createMultipartUploadInput.StorageClass = s3Types.StorageClass(storageClass)
 		if createMultipartUploadInput.StorageClass == s3Types.StorageClassReducedRedundancy {
-			fmt.Println("Warning: REDUCED_REDUNDANCY is not recommended for use. It no longer has any cost benefits over STANDARD.")
+			fmt.Fprintln(os.Stderr, "Warning: REDUCED_REDUNDANCY is not recommended for use. It no longer has any cost benefits over STANDARD.")
 			if dryrun {
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 			} else {
-				fmt.Println("Press enter to continue anyway.")
+				fmt.Fprintln(os.Stderr, "Press enter to continue anyway.")
 				fmt.Scanln()
 			}
 		}
@@ -252,10 +252,10 @@ func run() (int, error) {
 		return 1, err
 	}
 	fileSize := stat.Size()
-	fmt.Printf("File size: %s\n", formatFilesize(fileSize))
+	fmt.Fprintf(os.Stderr, "File size: %s\n", formatFilesize(fileSize))
 	if fileSize > 5*TiB {
-		fmt.Println("Warning: File size is greater than 5 TiB. At the time of writing 5 TiB is the maximum object size on Amazon S3.")
-		fmt.Println("This program is not stopping you from proceeding in case the limit has been increased, but be warned!")
+		fmt.Fprintln(os.Stderr, "Warning: File size is greater than 5 TiB. At the time of writing 5 TiB is the maximum object size on Amazon S3.")
+		fmt.Fprintln(os.Stderr, "This program is not stopping you from proceeding in case the limit has been increased, but be warned!")
 	}
 
 	var partSize int64 = 8 * MiB
@@ -279,16 +279,16 @@ func run() (int, error) {
 			partSize = 5 * GiB
 		}
 	}
-	fmt.Printf("Part size: %s\n", formatFilesize(partSize))
+	fmt.Fprintf(os.Stderr, "Part size: %s\n", formatFilesize(partSize))
 	if partSize < 5*MiB || partSize > 5*GiB {
-		fmt.Println("Warning: Part size is not in the allowed limits (must be between 5 MiB - 5 GiB).")
-		fmt.Println("This program is not stopping you from proceeding in case the limits have changed, but be warned!")
+		fmt.Fprintln(os.Stderr, "Warning: Part size is not in the allowed limits (must be between 5 MiB to 5 GiB).")
+		fmt.Fprintln(os.Stderr, "This program is not stopping you from proceeding in case the limits have changed, but be warned!")
 	}
-	fmt.Printf("The upload will consist of %d parts.\n", int64(math.Ceil(float64(fileSize)/float64(partSize))))
+	fmt.Fprintf(os.Stderr, "The upload will consist of %d parts.\n", int64(math.Ceil(float64(fileSize)/float64(partSize))))
 	if 10000*partSize < fileSize {
-		fmt.Println("Warning: File size is too large to be transferred in 10,000 parts!")
+		fmt.Fprintln(os.Stderr, "Warning: File size is too large to be transferred in 10,000 parts!")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Open the file
 	f, err := os.Open(file)
@@ -335,7 +335,7 @@ func run() (int, error) {
 		if err != nil {
 			return 1, err
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Initialize the AWS SDK
@@ -377,14 +377,14 @@ func run() (int, error) {
 				if mfaSecret == nil {
 					promptingForMfa = true
 					for {
-						fmt.Print("Assume Role MFA token code: ")
+						fmt.Fprint(os.Stderr, "Assume Role MFA token code: ")
 						var code string
 						_, err = fmt.Fscanln(mfaReader, &code)
 						if len(code) == 6 && isNumeric(code) {
 							promptingForMfa = false
 							return code, err
 						}
-						fmt.Println("Code must consist of 6 digits. Please try again.")
+						fmt.Fprintln(os.Stderr, "Code must consist of 6 digits. Please try again.")
 					}
 				} else {
 					t := time.Now().UTC()
@@ -433,7 +433,7 @@ func run() (int, error) {
 		}
 		bucketRegion := normalizeBucketLocation(bucketLocationOutput.LocationConstraint)
 		if debug {
-			fmt.Printf("Bucket region: %s\n", bucketRegion)
+			fmt.Fprintf(os.Stderr, "Bucket region: %s\n", bucketRegion)
 		}
 		client = s3.NewFromConfig(cfg, func(o *s3.Options) {
 			if v, ok := os.LookupEnv("AWS_USE_DUALSTACK_ENDPOINT"); !ok || v != "false" {
@@ -453,13 +453,13 @@ func run() (int, error) {
 	})
 	if obj != nil || err == nil || !isSmithyErrorCode(err, 404) {
 		if obj != nil {
-			fmt.Println("The object already exists in the S3 bucket. Please delete it first.")
+			fmt.Fprintln(os.Stderr, "The object already exists in the S3 bucket. Please delete it first.")
 		}
 		return 1, err
 	}
 
 	// Check if we should resume an upload
-	fmt.Println("Checking if this upload is already in progress.")
+	fmt.Fprintln(os.Stderr, "Checking if this upload is already in progress.")
 	var uploadId string
 	// TODO: Switch this to a paginator when aws-sdk-go-v2 supports it?
 	outputListMultipartUploads, err := client.ListMultipartUploads(context.TODO(), &s3.ListMultipartUploadsInput{
@@ -474,23 +474,23 @@ func run() (int, error) {
 			continue
 		}
 
-		// fmt.Printf("Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
+		// fmt.Fprintf(os.Stderr, "Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
 		if uploadId != "" {
-			fmt.Println("Error: more than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
+			fmt.Fprintln(os.Stderr, "Error: more than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
 			return 1, nil
 		}
 		uploadId = *upload.UploadId
-		fmt.Printf("Found an upload in progress with upload id: %s\n", uploadId)
+		fmt.Fprintf(os.Stderr, "Found an upload in progress with upload id: %s\n", uploadId)
 
 		localLocation, err := time.LoadLocation("Local")
 		if err != nil {
 			return 1, err
 		}
-		fmt.Printf("Upload started at %v.\n", upload.Initiated.In(localLocation))
+		fmt.Fprintf(os.Stderr, "Upload started at %v.\n", upload.Initiated.In(localLocation))
 
 		if createMultipartUploadInput.StorageClass != "" &&
 			upload.StorageClass != createMultipartUploadInput.StorageClass {
-			fmt.Printf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove -storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
+			fmt.Fprintf(os.Stderr, "Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove -storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
 			return 1, nil
 		}
 	}
@@ -501,16 +501,16 @@ func run() (int, error) {
 	var offset int64
 	if uploadId == "" {
 		if dryrun {
-			fmt.Println("Upload not started.")
+			fmt.Fprintln(os.Stderr, "Upload not started.")
 		} else {
-			fmt.Println("Creating multipart upload.")
+			fmt.Fprintln(os.Stderr, "Creating multipart upload.")
 			outputCreateMultipartUpload, err := client.CreateMultipartUpload(context.TODO(), &createMultipartUploadInput)
 			if err != nil {
 				return 1, err
 			}
 
 			uploadId = *outputCreateMultipartUpload.UploadId
-			fmt.Printf("Upload id: %v\n", uploadId)
+			fmt.Fprintf(os.Stderr, "Upload id: %v\n", uploadId)
 		}
 	} else {
 		paginatorListParts := s3.NewListPartsPaginator(client, &s3.ListPartsInput{
@@ -525,7 +525,7 @@ func run() (int, error) {
 			}
 			partNumber += int32(len(page.Parts))
 			for _, part := range page.Parts {
-				// fmt.Printf("Part: {Size: %d, PartNumber: %d, LastModified: %s, ETag: %s}\n", part.Size, part.PartNumber, part.LastModified, *part.ETag)
+				// fmt.Fprintf(os.Stderr, "Part: {Size: %d, PartNumber: %d, LastModified: %s, ETag: %s}\n", part.Size, part.PartNumber, part.LastModified, *part.ETag)
 				offset += part.Size
 				parts = append(parts, s3Types.CompletedPart{
 					PartNumber: part.PartNumber,
@@ -534,14 +534,14 @@ func run() (int, error) {
 				// Check for potential problems (if not the last part)
 				if offset != fileSize {
 					if part.Size < 5*MiB {
-						fmt.Printf("Warning: Part %d has size %s, which is less than 5 MiB, and it is not the last part in the upload. This upload will fail with an error!\n", part.PartNumber, formatFilesize(part.Size))
+						fmt.Fprintf(os.Stderr, "Warning: Part %d has size %s, which is less than 5 MiB, and it is not the last part in the upload. This upload will fail with an error!\n", part.PartNumber, formatFilesize(part.Size))
 					} else if part.Size != page.Parts[0].Size {
-						fmt.Printf("Warning: Part %d has an inconsistent size (%d bytes) compared to part 1 (%d bytes).\n", part.PartNumber, part.Size, page.Parts[0].Size)
+						fmt.Fprintf(os.Stderr, "Warning: Part %d has an inconsistent size (%d bytes) compared to part 1 (%d bytes).\n", part.PartNumber, part.Size, page.Parts[0].Size)
 					}
 				}
 			}
 		}
-		fmt.Printf("%s already uploaded in %d parts.\n", formatFilesize(offset), len(parts))
+		fmt.Fprintf(os.Stderr, "%s already uploaded in %d parts.\n", formatFilesize(offset), len(parts))
 
 		// Check if there are any gaps in the existing parts
 		partNumbers := make([]int, len(parts))
@@ -557,10 +557,10 @@ func run() (int, error) {
 		}
 
 		if offset > fileSize {
-			fmt.Println("Error: size of parts already uploaded is greater than local file size.")
+			fmt.Fprintln(os.Stderr, "Error: size of parts already uploaded is greater than local file size.")
 			return 1, nil
 		}
-		fmt.Printf("%s remaining.\n", formatFilesize(fileSize-offset))
+		fmt.Fprintf(os.Stderr, "%s remaining.\n", formatFilesize(fileSize-offset))
 	}
 
 	if dryrun {
@@ -568,7 +568,7 @@ func run() (int, error) {
 			bytesRemaining := fileSize - offset
 			ns := float64(bytesRemaining) / float64(rate) * 1e9
 			timeRemaining := time.Duration(ns).Round(time.Second)
-			fmt.Printf("\nCompleting the upload at %s/s will take %s.\n", formatSize(rate), timeRemaining)
+			fmt.Fprintf(os.Stderr, "\nCompleting the upload at %s/s will take %s.\n", formatSize(rate), timeRemaining)
 		}
 		return 0, nil
 	}
@@ -598,12 +598,12 @@ func run() (int, error) {
 				// This looks a bit awkward but it is necessary since it is harder to reset the terminal and put back the rune that we already read
 				if char >= '0' && char <= '9' {
 					mfaCode += string(char)
-					fmt.Print(string(char))
+					fmt.Fprint(os.Stderr, string(char))
 				} else if (char == 127 || char == '\b') && len(mfaCode) > 0 {
 					mfaCode = mfaCode[:len(mfaCode)-1]
-					fmt.Print("\b\033[J")
+					fmt.Fprint(os.Stderr, "\b\033[J")
 				} else if char == '\n' || char == '\r' {
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 					mfaWriter.Write([]byte(mfaCode + "\n"))
 					mfaCode = ""
 				}
@@ -632,7 +632,7 @@ func run() (int, error) {
 				if oldTerminalState != nil {
 					terminal.RestoreTerminal(oldTerminalState)
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 				os.Exit(1)
 			}
 			interrupted = true
@@ -640,12 +640,12 @@ func run() (int, error) {
 				stdinInput <- 'q'
 				continue
 			}
-			fmt.Println("\nInterrupt received, finishing current part. Press Ctrl-C again to exit immediately. Press the space key to cancel exit.")
+			fmt.Fprintln(os.Stderr, "\nInterrupt received, finishing current part. Press Ctrl-C again to exit immediately. Press the space key to cancel exit.")
 		}
 	}()
 
-	fmt.Println()
-	fmt.Println("Tip: Press ? to see the available keyboard controls.")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Tip: Press ? to see the available keyboard controls.")
 
 	// Start the scheduler
 	if schedule != nil && len(schedule.blocks) > 0 {
@@ -664,12 +664,12 @@ func run() (int, error) {
 				}
 
 				if !paused && rate != block.rate {
-					fmt.Printf("\nScheduler: set ratelimit to %s.\n", formatLimit2(block.rate))
+					fmt.Fprintf(os.Stderr, "\nScheduler: set ratelimit to %s.\n", formatLimit2(block.rate))
 					rate = block.rate
 					if reader != nil {
 						reader.SetLimit(rate)
 					}
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 				}
 
 				for time.Now().Before(end) {
@@ -680,7 +680,7 @@ func run() (int, error) {
 				if !paused {
 					block = schedule.next()
 					if block.active() && rate != schedule.defaultRate {
-						fmt.Printf("\nScheduler: reset ratelimit to default (%s).\n", formatLimit2(schedule.defaultRate))
+						fmt.Fprintf(os.Stderr, "\nScheduler: reset ratelimit to default (%s).\n", formatLimit2(schedule.defaultRate))
 						rate = schedule.defaultRate
 						if reader != nil {
 							reader.SetLimit(rate)
@@ -699,10 +699,10 @@ func run() (int, error) {
 			if interrupted {
 				return 1, nil
 			}
-			fmt.Println("Transfer is paused. Press the space key to resume.")
+			fmt.Fprintln(os.Stderr, "Transfer is paused. Press the space key to resume.")
 			r := <-stdinInput
 			if r == ' ' {
-				fmt.Println("Resuming.")
+				fmt.Fprintln(os.Stderr, "Resuming.")
 				paused = false
 				waitingToUnpause = false
 			}
@@ -752,30 +752,30 @@ func run() (int, error) {
 			case <-time.After(time.Second):
 			case r := <-stdinInput:
 				if r == 'i' {
-					fmt.Println()
-					fmt.Println()
-					fmt.Printf("Uploading %s to %s\n", flag.Arg(0), flag.Arg(1))
-					fmt.Printf("File size: %s\n", formatFilesize(fileSize))
-					fmt.Printf("Part size: %s\n", formatFilesize(partSize))
+					fmt.Fprintln(os.Stderr)
+					fmt.Fprintln(os.Stderr)
+					fmt.Fprintf(os.Stderr, "Uploading %s to %s\n", flag.Arg(0), flag.Arg(1))
+					fmt.Fprintf(os.Stderr, "File size: %s\n", formatFilesize(fileSize))
+					fmt.Fprintf(os.Stderr, "Part size: %s\n", formatFilesize(partSize))
 					if storageClass != "" {
-						fmt.Printf("Storage class: %s\n", storageClass)
+						fmt.Fprintf(os.Stderr, "Storage class: %s\n", storageClass)
 					}
 					if scheduleFn != "" {
-						fmt.Printf("Schedule: %s\n", scheduleFn)
+						fmt.Fprintf(os.Stderr, "Schedule: %s\n", scheduleFn)
 					}
-					fmt.Printf("Currently uploading part %d out of %d.\n", partNumber, int64(math.Ceil(float64(fileSize)/float64(partSize))))
-					fmt.Println()
+					fmt.Fprintf(os.Stderr, "Currently uploading part %d out of %d.\n", partNumber, int64(math.Ceil(float64(fileSize)/float64(partSize))))
+					fmt.Fprintln(os.Stderr)
 				} else if r == 'u' {
 					rate = 0
 					reader.SetLimit(rate)
-					fmt.Print("\nUnlimited transfer rate.\n")
+					fmt.Fprint(os.Stderr, "\nUnlimited transfer rate.\n")
 				} else if r == 'r' {
 					rate = initialRate
 					reader.SetLimit(rate)
 					if rate == 0 {
-						fmt.Print("\nUnlimited transfer rate.")
+						fmt.Fprint(os.Stderr, "\nUnlimited transfer rate.")
 					} else {
-						fmt.Printf("\nTransfer limit set to: %s/s.", formatSize(rate))
+						fmt.Fprintf(os.Stderr, "\nTransfer limit set to: %s/s.", formatSize(rate))
 					}
 				} else if r == 'a' || r == 's' || r == 'd' || r == 'f' ||
 					r == 'z' || r == 'x' || r == 'c' || r == 'v' {
@@ -803,7 +803,7 @@ func run() (int, error) {
 						rate = 1e3
 					}
 					reader.SetLimit(rate)
-					fmt.Printf("\nTransfer limit set to: %s/s\n", formatSize(rate))
+					fmt.Fprintf(os.Stderr, "\nTransfer limit set to: %s/s\n", formatSize(rate))
 				} else if r >= '0' && r <= '9' {
 					n := int64(r - '0')
 					if n == 0 {
@@ -812,21 +812,21 @@ func run() (int, error) {
 						rate = n * 100e3
 					}
 					reader.SetLimit(rate)
-					fmt.Printf("\nTransfer limit set to: %s/s\n", formatSize(rate))
+					fmt.Fprintf(os.Stderr, "\nTransfer limit set to: %s/s\n", formatSize(rate))
 				} else if r == 'p' {
 					// Pause after current part
 					paused = !paused
 					if paused {
-						fmt.Println("\nTransfer will pause after the current part.")
+						fmt.Fprintln(os.Stderr, "\nTransfer will pause after the current part.")
 					} else {
-						fmt.Println("\nWill not pause.")
+						fmt.Fprintln(os.Stderr, "\nWill not pause.")
 					}
 				} else if r == ' ' {
 					// Pausing with the space key just lowers the rate to be very low
 					// Unpausing restores the old rate
 					if interrupted {
 						interrupted = false
-						fmt.Println("\nExit cancelled.")
+						fmt.Fprintln(os.Stderr, "\nExit cancelled.")
 					} else {
 						paused = !paused
 						if paused {
@@ -837,31 +837,31 @@ func run() (int, error) {
 						}
 						reader.SetLimit(rate)
 						if rate == 0 {
-							fmt.Print("\nUnlimited transfer rate.")
+							fmt.Fprint(os.Stderr, "\nUnlimited transfer rate.")
 						} else {
-							fmt.Printf("\nTransfer limit set to: %s/s.", formatSize(rate))
+							fmt.Fprintf(os.Stderr, "\nTransfer limit set to: %s/s.", formatSize(rate))
 						}
 						if paused {
-							fmt.Print(" Transfer will pause after the current part.")
+							fmt.Fprint(os.Stderr, " Transfer will pause after the current part.")
 						}
-						fmt.Println()
+						fmt.Fprintln(os.Stderr)
 					}
 				} else if r == '?' {
-					fmt.Println()
-					fmt.Println()
-					fmt.Println("i       - print information about the upload")
-					fmt.Println("u       - set to unlimited transfer rate")
-					fmt.Println("r       - restore initial transfer limit (from -bwlimit)")
-					fmt.Println("a s d f - increase transfer limit by 1, 10, 100, or 250 kB/s")
-					fmt.Println("z x c v - decrease transfer limit by 1, 10, 100, or 250 kB/s")
-					fmt.Println("0-9     - limit the transfer rate to 0.X MB/s")
-					fmt.Println("p       - pause transfer after current part")
-					fmt.Println("[space] - pause transfer (sets transfer limit to 1 kB/s)")
-					fmt.Println("Ctrl-C  - exit after current part")
-					fmt.Println("          press twice to abort immediately")
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
+					fmt.Fprintln(os.Stderr)
+					fmt.Fprintln(os.Stderr, "i       - print information about the upload")
+					fmt.Fprintln(os.Stderr, "u       - set to unlimited transfer rate")
+					fmt.Fprintln(os.Stderr, "r       - restore initial transfer limit (from -bwlimit)")
+					fmt.Fprintln(os.Stderr, "a s d f - increase transfer limit by 1, 10, 100, or 250 kB/s")
+					fmt.Fprintln(os.Stderr, "z x c v - decrease transfer limit by 1, 10, 100, or 250 kB/s")
+					fmt.Fprintln(os.Stderr, "0-9     - limit the transfer rate to 0.X MB/s")
+					fmt.Fprintln(os.Stderr, "p       - pause transfer after current part")
+					fmt.Fprintln(os.Stderr, "[space] - pause transfer (sets transfer limit to 1 kB/s)")
+					fmt.Fprintln(os.Stderr, "Ctrl-C  - exit after current part")
+					fmt.Fprintln(os.Stderr, "          press twice to abort immediately")
+					fmt.Fprintln(os.Stderr)
 				} else if r == terminal.EnterKey {
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 				}
 			}
 
@@ -870,17 +870,17 @@ func run() (int, error) {
 			}
 
 			s = reader.Status()
-			fmt.Printf("\033[2K\rUploading part %d: %s, %s/s%s, %s remaining. (total: %s, %s remaining)", partNumber, s.Progress, formatSize(s.CurRate), formatLimit(rate, true), s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
+			fmt.Fprintf(os.Stderr, "\033[2K\rUploading part %d: %s, %s/s%s, %s remaining. (total: %s, %s remaining)", partNumber, s.Progress, formatSize(s.CurRate), formatLimit(rate, true), s.TimeRem.Round(time.Second), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 		}
 
 		// Part upload has completed or failed
 		if uploadErr == nil {
 			timeElapsed := niceDuration(time.Since(partStartTime))
-			fmt.Printf("\033[2K\rUploaded part %d in %s (%s/s%s). (total: %s, %s remaining)\n", partNumber, timeElapsed, formatSize(s.CurRate), formatLimit(rate, false), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
+			fmt.Fprintf(os.Stderr, "\033[2K\rUploaded part %d in %s (%s/s%s). (total: %s, %s remaining)\n", partNumber, timeElapsed, formatSize(s.CurRate), formatLimit(rate, false), s.TotalProgress, s.TotalTimeRem.Round(time.Second))
 
 			// Check if the user wants to stop
 			if interrupted {
-				fmt.Println("Exited early.")
+				fmt.Fprintln(os.Stderr, "Exited early.")
 				return 1, nil
 			}
 
@@ -906,12 +906,12 @@ func run() (int, error) {
 
 	// Do a sanity check
 	if offset != fileSize {
-		fmt.Println("Something went terribly wrong (offset != fileSize).")
+		fmt.Fprintln(os.Stderr, "Something went terribly wrong (offset != fileSize).")
 		return 1, nil
 	}
 
 	// Complete the upload
-	fmt.Println("Completing the multipart upload.")
+	fmt.Fprintln(os.Stderr, "Completing the multipart upload.")
 	completeMultipartUploadInput := &s3.CompleteMultipartUploadInput{
 		Bucket:   aws.String(bucket),
 		Key:      aws.String(key),
