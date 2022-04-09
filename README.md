@@ -30,6 +30,8 @@ LocalPath must be a local file.
 S3Uri must have the format s3://<bucketname>/<key>.
 
 Parameters:
+  -bucket-key-enabled
+    	Enables use of an S3 Bucket Key for object encryption with server-side encryption using AWS KMS (SSE-KMS).
   -bwlimit string
     	Bandwidth limit. (e.g. "2.5m")
   -ca-bundle string
@@ -72,6 +74,14 @@ Parameters:
     	The bucket region. Avoids one API call.
   -schedule string
     	Schedule file to use for automatically adjusting the bandwidth limit (see https://github.com/stefansundin/shrimp/discussions/4).
+  -sse string
+    	Specifies server-side encryption of the object in S3. Valid values are AES256 and aws:kms.
+  -sse-c string
+    	Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, -sse-c-key must be specified as well.
+  -sse-c-key string
+    	The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.
+  -sse-kms-key-id string
+    	The customer-managed AWS Key Management Service (KMS) key ID that should be used to server-side encrypt the object in S3.
   -storage-class string
     	Storage class. Known values: STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE, OUTPOSTS, GLACIER_IR.
   -tagging string

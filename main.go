@@ -49,8 +49,8 @@ func main() {
 }
 
 func run() (int, error) {
-	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata string
-	var computeChecksum, noVerifySsl, noSignRequest, mfaSecretFlag, dryrun, debug, versionFlag bool
+	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId string
+	var bucketKeyEnabled, computeChecksum, noVerifySsl, noSignRequest, mfaSecretFlag, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
@@ -69,7 +69,12 @@ func run() (int, error) {
 	flag.StringVar(&tagging, "tagging", "", "The tag-set for the object. The tag-set must be encoded as URL Query parameters.")
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. Known values: "+strings.Join(knownStorageClasses(), ", ")+".")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
+	flag.StringVar(&sse, "sse", "", "Specifies server-side encryption of the object in S3. Valid values are AES256 and aws:kms.")
+	flag.StringVar(&sseCustomerAlgorithm, "sse-c", "", "Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, -sse-c-key must be specified as well.")
+	flag.StringVar(&sseCustomerKey, "sse-c-key", "", "The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.")
+	flag.StringVar(&sseKmsKeyId, "sse-kms-key-id", "", "The customer-managed AWS Key Management Service (KMS) key ID that should be used to server-side encrypt the object in S3.")
 	flag.DurationVar(&mfaDuration, "mfa-duration", time.Hour, "MFA duration. shrimp will prompt for another code after this duration. (max \"12h\")")
+	flag.BoolVar(&bucketKeyEnabled, "bucket-key-enabled", false, "Enables use of an S3 Bucket Key for object encryption with server-side encryption using AWS KMS (SSE-KMS).")
 	flag.BoolVar(&mfaSecretFlag, "mfa-secret", false, "Provide the MFA secret and shrimp will automatically generate TOTP codes. (useful if the upload takes longer than the allowed assume role duration)")
 	flag.BoolVar(&computeChecksum, "compute-checksum", false, "Compute checksum and add to SHA256SUMS file.")
 	flag.BoolVar(&noVerifySsl, "no-verify-ssl", false, "Do not verify SSL certificates.")
@@ -200,6 +205,21 @@ func run() (int, error) {
 		} else {
 			return 1, err
 		}
+	}
+	if sse != "" {
+		createMultipartUploadInput.ServerSideEncryption = s3Types.ServerSideEncryption(sse)
+	}
+	if sseCustomerAlgorithm != "" {
+		createMultipartUploadInput.SSECustomerAlgorithm = aws.String(sseCustomerAlgorithm)
+	}
+	if sseCustomerKey != "" {
+		createMultipartUploadInput.SSECustomerKey = aws.String(sseCustomerKey)
+	}
+	if sseKmsKeyId != "" {
+		createMultipartUploadInput.SSEKMSKeyId = aws.String(sseKmsKeyId)
+	}
+	if bucketKeyEnabled {
+		createMultipartUploadInput.BucketKeyEnabled = true
 	}
 
 	var initialRate int64
@@ -700,17 +720,27 @@ func run() (int, error) {
 
 		// Start the upload in a go routine
 		doneCh := make(chan struct{})
-		var uploadErr error
 		var uploadPart *s3.UploadPartOutput
+		var uploadErr error
 		go func() {
 			defer close(doneCh)
-			uploadPart, uploadErr = client.UploadPart(context.TODO(), &s3.UploadPartInput{
+			uploadPartInput := &s3.UploadPartInput{
 				Bucket:     aws.String(bucket),
 				Key:        aws.String(key),
 				UploadId:   aws.String(uploadId),
 				PartNumber: partNumber,
 				Body:       reader,
-			})
+			}
+			if expectedBucketOwner != "" {
+				uploadPartInput.ExpectedBucketOwner = aws.String(expectedBucketOwner)
+			}
+			if sseCustomerAlgorithm != "" {
+				uploadPartInput.SSECustomerAlgorithm = aws.String(sseCustomerAlgorithm)
+			}
+			if sseCustomerKey != "" {
+				uploadPartInput.SSECustomerKey = aws.String(sseCustomerKey)
+			}
+			uploadPart, uploadErr = client.UploadPart(context.TODO(), uploadPartInput)
 		}()
 
 		// Main loop while the upload is in progress
@@ -882,14 +912,24 @@ func run() (int, error) {
 
 	// Complete the upload
 	fmt.Println("Completing the multipart upload.")
-	_, err = client.CompleteMultipartUpload(context.TODO(), &s3.CompleteMultipartUploadInput{
+	completeMultipartUploadInput := &s3.CompleteMultipartUploadInput{
 		Bucket:   aws.String(bucket),
 		Key:      aws.String(key),
 		UploadId: aws.String(uploadId),
 		MultipartUpload: &s3Types.CompletedMultipartUpload{
 			Parts: parts,
 		},
-	})
+	}
+	if expectedBucketOwner != "" {
+		completeMultipartUploadInput.ExpectedBucketOwner = aws.String(expectedBucketOwner)
+	}
+	if sseCustomerAlgorithm != "" {
+		completeMultipartUploadInput.SSECustomerAlgorithm = aws.String(sseCustomerAlgorithm)
+	}
+	if sseCustomerKey != "" {
+		completeMultipartUploadInput.SSECustomerKey = aws.String(sseCustomerKey)
+	}
+	_, err = client.CompleteMultipartUpload(context.TODO(), completeMultipartUploadInput)
 	if err != nil {
 		return 1, err
 	}
