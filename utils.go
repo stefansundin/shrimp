@@ -28,10 +28,10 @@ const GiB = 1024 * MiB
 const TiB = 1024 * GiB
 
 func min(a, b int64) int64 {
-	if a > b {
-		return b
+	if a < b {
+		return a
 	}
-	return a
+	return b
 }
 
 func minDuration(a, b time.Duration) time.Duration {
