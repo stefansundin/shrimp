@@ -12,7 +12,9 @@ import (
 	"io"
 	"io/fs"
 	"math"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
@@ -120,9 +122,23 @@ func run() (int, error) {
 		fmt.Fprintln(os.Stderr, "I will probably replace the flag parsing library in the future to address this.")
 		return 1, nil
 	}
-	if endpointURL != "" && !strings.HasPrefix(endpointURL, "http://") && !strings.HasPrefix(endpointURL, "https://") {
-		fmt.Fprintln(os.Stderr, "Error: the endpoint URL must start with http:// or https://.")
-		return 1, nil
+	if endpointURL != "" {
+		if !strings.HasPrefix(endpointURL, "http://") && !strings.HasPrefix(endpointURL, "https://") {
+			return 1, errors.New("Error: the endpoint URL must start with http:// or https://.")
+		}
+		if !usePathStyle {
+			u, err := url.Parse(endpointURL)
+			if err != nil {
+				return 1, errors.New("Error: unable to parse the endpoint URL.")
+			}
+			hostname := u.Hostname()
+			if hostname == "localhost" || net.ParseIP(hostname) != nil {
+				if debug {
+					fmt.Fprintln(os.Stderr, "Detected IP address in endpoint URL. Implicitly opting in for path style.")
+				}
+				usePathStyle = true
+			}
+		}
 	}
 	if mfaDuration > 12*time.Hour {
 		fmt.Fprintln(os.Stderr, "Warning: MFA duration can not exceed 12 hours.")
