@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 const version = "0.0.1"
@@ -51,7 +53,7 @@ func main() {
 }
 
 func run() (int, error) {
-	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId, checksumAlgorithm, objectLockLegalHoldStatus, objectLockMode, objectLockRetainUntilDate string
+	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, requestPayer, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId, checksumAlgorithm, objectLockLegalHoldStatus, objectLockMode, objectLockRetainUntilDate string
 	var bucketKeyEnabled, computeChecksum, noVerifySsl, noSignRequest, useAccelerateEndpoint, usePathStyle, mfaSecretFlag, force, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
@@ -71,6 +73,7 @@ func run() (int, error) {
 	flag.StringVar(&tagging, "tagging", "", "The tag-set for the object. The tag-set must be encoded as URL Query parameters.")
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. Known values: "+strings.Join(knownStorageClasses(), ", ")+".")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
+	flag.StringVar(&requestPayer, "request-payer", "", "Confirms that the requester knows that they will be charged for the requests. Possible values: requester.")
 	flag.StringVar(&sse, "sse", "", "Specifies server-side encryption of the object in S3. Valid values are AES256 and aws:kms.")
 	flag.StringVar(&sseCustomerAlgorithm, "sse-c", "", "Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, -sse-c-key must be specified as well.")
 	flag.StringVar(&sseCustomerKey, "sse-c-key", "", "The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.")
@@ -183,8 +186,9 @@ func run() (int, error) {
 
 	// Construct the CreateMultipartUploadInput data
 	createMultipartUploadInput := s3.CreateMultipartUploadInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
+		Bucket:       aws.String(bucket),
+		Key:          aws.String(key),
+		RequestPayer: s3Types.RequestPayer(requestPayer),
 	}
 	if contentType != "" {
 		createMultipartUploadInput.ContentType = aws.String(contentType)
@@ -496,8 +500,9 @@ func run() (int, error) {
 	// Abort if the object already exists
 	if !force {
 		obj, err := client.HeadObject(context.TODO(), &s3.HeadObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(key),
+			Bucket:       aws.String(bucket),
+			Key:          aws.String(key),
+			RequestPayer: s3Types.RequestPayer(requestPayer),
 		})
 		if obj != nil || err == nil || !isSmithyErrorCode(err, 404) {
 			if obj != nil {
@@ -515,6 +520,23 @@ func run() (int, error) {
 	outputListMultipartUploads, err := client.ListMultipartUploads(context.TODO(), &s3.ListMultipartUploadsInput{
 		Bucket: aws.String(bucket),
 		Prefix: aws.String(key),
+		// ListMultipartUploadsInput is missing RequestPayer, so we work around it with a custom middleware. https://github.com/aws/aws-sdk-go-v2/issues/1666
+		// RequestPayer: s3Types.RequestPayer(requestPayer),
+	}, func(o *s3.Options) {
+		if requestPayer != "" {
+			o.APIOptions = append(o.APIOptions, func(s *middleware.Stack) error {
+				return s.Finalize.Add(middleware.FinalizeMiddlewareFunc("RequestPayer",
+					func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (
+						out middleware.FinalizeOutput, metadata middleware.Metadata, err error,
+					) {
+						req := in.Request.(*smithyhttp.Request)
+						req.Header.Set("X-Amz-Request-Payer", requestPayer)
+						in.Request = req
+						return next.HandleFinalize(ctx, in)
+					},
+				), middleware.Before)
+			})
+		}
 	})
 	if err != nil {
 		return 1, err
@@ -562,9 +584,10 @@ func run() (int, error) {
 		}
 	} else {
 		paginatorListParts := s3.NewListPartsPaginator(client, &s3.ListPartsInput{
-			Bucket:   aws.String(bucket),
-			Key:      aws.String(key),
-			UploadId: aws.String(uploadId),
+			Bucket:       aws.String(bucket),
+			Key:          aws.String(key),
+			UploadId:     aws.String(uploadId),
+			RequestPayer: s3Types.RequestPayer(requestPayer),
 		})
 		for paginatorListParts.HasMorePages() {
 			page, err := paginatorListParts.NextPage(context.TODO())
@@ -777,11 +800,12 @@ func run() (int, error) {
 		go func() {
 			defer close(doneCh)
 			uploadPartInput := &s3.UploadPartInput{
-				Bucket:     aws.String(bucket),
-				Key:        aws.String(key),
-				UploadId:   aws.String(uploadId),
-				PartNumber: partNumber,
-				Body:       reader,
+				Bucket:       aws.String(bucket),
+				Key:          aws.String(key),
+				UploadId:     aws.String(uploadId),
+				PartNumber:   partNumber,
+				Body:         reader,
+				RequestPayer: s3Types.RequestPayer(requestPayer),
 			}
 			if expectedBucketOwner != "" {
 				uploadPartInput.ExpectedBucketOwner = aws.String(expectedBucketOwner)
@@ -979,6 +1003,7 @@ func run() (int, error) {
 		MultipartUpload: &s3Types.CompletedMultipartUpload{
 			Parts: parts,
 		},
+		RequestPayer: s3Types.RequestPayer(requestPayer),
 	}
 	if expectedBucketOwner != "" {
 		completeMultipartUploadInput.ExpectedBucketOwner = aws.String(expectedBucketOwner)

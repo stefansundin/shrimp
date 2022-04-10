@@ -82,6 +82,8 @@ Parameters:
     	Use a specific profile from your credential file.
   -region string
     	The bucket region. Avoids one API call.
+  -request-payer string
+    	Confirms that the requester knows that they will be charged for the requests. Possible values: requester.
   -schedule string
     	Schedule file to use for automatically adjusting the bandwidth limit (see https://github.com/stefansundin/shrimp/discussions/4).
   -sse string
