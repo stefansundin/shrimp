@@ -172,12 +172,10 @@ func run() (int, error) {
 	file := flag.Arg(0)
 	bucket, key := parseS3Uri(flag.Arg(1))
 	if strings.HasPrefix(file, "s3://") {
-		fmt.Fprintln(os.Stderr, "Error: shrimp is currently not able to copy files from S3.")
-		return 1, nil
+		return 1, errors.New("Error: shrimp is currently not able to copy files from S3.")
 	}
 	if bucket == "" || key == "" {
-		fmt.Fprintln(os.Stderr, "Error: The destination must have the format s3://<bucketname>/<key>")
-		return 1, nil
+		return 1, errors.New("Error: The destination must have the format s3://<bucketname>/<key>")
 	}
 
 	// Construct the CreateMultipartUploadInput data
@@ -509,8 +507,7 @@ func run() (int, error) {
 
 		// fmt.Fprintf(os.Stderr, "Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
 		if uploadId != "" {
-			fmt.Fprintln(os.Stderr, "Error: more than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
-			return 1, nil
+			return 1, errors.New("Error: more than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
 		}
 		uploadId = *upload.UploadId
 		fmt.Fprintf(os.Stderr, "Found an upload in progress with upload id: %s\n", uploadId)
@@ -523,8 +520,7 @@ func run() (int, error) {
 
 		if createMultipartUploadInput.StorageClass != "" &&
 			upload.StorageClass != createMultipartUploadInput.StorageClass {
-			fmt.Fprintf(os.Stderr, "Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove -storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
-			return 1, nil
+			return 1, fmt.Errorf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove -storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
 		}
 	}
 
@@ -590,14 +586,12 @@ func run() (int, error) {
 		sort.Ints(partNumbers)
 		for i, partNumber := range partNumbers {
 			if partNumber != i+1 {
-				fmt.Fprintf(os.Stderr, "Error: existing parts are not contiguous (part %d is missing). Can not handle this case yet.\n", i+1)
-				return 1, nil
+				return 1, fmt.Errorf("Error: existing parts are not contiguous (part %d is missing). Can not handle this case yet.\n", i+1)
 			}
 		}
 
 		if offset > fileSize {
-			fmt.Fprintln(os.Stderr, "Error: size of parts already uploaded is greater than local file size.")
-			return 1, nil
+			return 1, errors.New("Error: size of parts already uploaded is greater than local file size.")
 		}
 		fmt.Fprintf(os.Stderr, "%s remaining.\n", formatFilesize(fileSize-offset))
 	}
@@ -925,8 +919,7 @@ func run() (int, error) {
 
 			// Check if the user wants to stop
 			if interrupted {
-				fmt.Fprintln(os.Stderr, "Exited early.")
-				return 1, nil
+				return 1, errors.New("Exited early.")
 			}
 
 			parts = append(parts, s3Types.CompletedPart{
@@ -955,8 +948,7 @@ func run() (int, error) {
 
 	// Do a sanity check
 	if offset != fileSize {
-		fmt.Fprintln(os.Stderr, "Something went terribly wrong (offset != fileSize).")
-		return 1, nil
+		return 1, fmt.Errorf("Something went terribly wrong (offset != fileSize => %d != %d).", offset, fileSize)
 	}
 
 	// Complete the upload
