@@ -146,6 +146,33 @@ func jsonMarshalSortedIndent(v interface{}, prefix, indent string) ([]byte, erro
 	return output, err
 }
 
+func parseTimestamp(s string) (*time.Time, error) {
+	// Compatible with the aws cli timestamp format: https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-parameters-types.html#parameter-type-timestamp
+	// Acceptable formats include:
+	// - YYYY-MM-DDThh:mm:ss.sssTZD (UTC), for example, 2014-10-01T20:30:00.000Z
+	// - YYYY-MM-DDThh:mm:ss.sssTZD (with offset), for example, 2014-10-01T12:30:00.000-08:00
+	// - YYYY-MM-DD, for example, 2014-10-01
+	// - Unix time in seconds, for example, 1412195400. This is sometimes referred to as Unix Epoch time and represents the number of seconds since midnight, January 1, 1970 UTC.
+	var err error
+	var t time.Time
+	if isNumeric(s) {
+		n, err := strconv.ParseInt(s, 10, 0)
+		if err != nil {
+			return nil, err
+		}
+		t = time.Unix(n, 0)
+	} else {
+		t, err = time.Parse(time.RFC3339, s)
+		if err != nil {
+			t, err = time.Parse("2006-01-02", s)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &t, nil
+}
+
 func parseMetadata(s string) (map[string]string, error) {
 	m := make(map[string]string)
 	for _, kv := range strings.Split(s, ",") {

@@ -251,11 +251,11 @@ func run() (int, error) {
 		createMultipartUploadInput.ObjectLockMode = s3Types.ObjectLockMode(objectLockMode)
 	}
 	if objectLockRetainUntilDate != "" {
-		t, err := time.Parse(time.RFC3339, objectLockRetainUntilDate)
+		t, err := parseTimestamp(objectLockRetainUntilDate)
 		if err != nil {
 			return 1, err
 		}
-		createMultipartUploadInput.ObjectLockRetainUntilDate = &t
+		createMultipartUploadInput.ObjectLockRetainUntilDate = t
 	}
 
 	var initialRate int64
