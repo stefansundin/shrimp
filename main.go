@@ -51,7 +51,7 @@ func main() {
 }
 
 func run() (int, error) {
-	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId, checksumAlgorithm string
+	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId, checksumAlgorithm, objectLockLegalHoldStatus, objectLockMode, objectLockRetainUntilDate string
 	var bucketKeyEnabled, computeChecksum, noVerifySsl, noSignRequest, useAccelerateEndpoint, usePathStyle, mfaSecretFlag, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
@@ -76,6 +76,9 @@ func run() (int, error) {
 	flag.StringVar(&sseCustomerKey, "sse-c-key", "", "The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.")
 	flag.StringVar(&sseKmsKeyId, "sse-kms-key-id", "", "The customer-managed AWS Key Management Service (KMS) key ID that should be used to server-side encrypt the object in S3.")
 	flag.StringVar(&checksumAlgorithm, "checksum-algorithm", "", "The checksum algorithm to use for the object. Supported values: CRC32, CRC32C, SHA1, SHA256.")
+	flag.StringVar(&objectLockLegalHoldStatus, "object-lock-legal-hold-status", "", "Specifies whether a legal hold will be applied to this object. Possible values: ON, OFF.")
+	flag.StringVar(&objectLockMode, "object-lock-mode", "", "The Object Lock mode that you want to apply to this object. Possible values: GOVERNANCE, COMPLIANCE.")
+	flag.StringVar(&objectLockRetainUntilDate, "object-lock-retain-until-date", "", "The date and time when you want this object's Object Lock to expire. Must be formatted as a timestamp parameter. (e.g. \"2022-03-14T15:14:15Z\")")
 	flag.DurationVar(&mfaDuration, "mfa-duration", time.Hour, "MFA duration. shrimp will prompt for another code after this duration. (max \"12h\")")
 	flag.BoolVar(&bucketKeyEnabled, "bucket-key-enabled", false, "Enables use of an S3 Bucket Key for object encryption with server-side encryption using AWS KMS (SSE-KMS).")
 	flag.BoolVar(&mfaSecretFlag, "mfa-secret", false, "Provide the MFA secret and shrimp will automatically generate TOTP codes. (useful if the upload takes longer than the allowed assume role duration)")
@@ -240,6 +243,19 @@ func run() (int, error) {
 	}
 	if checksumAlgorithm != "" {
 		createMultipartUploadInput.ChecksumAlgorithm = s3Types.ChecksumAlgorithm(checksumAlgorithm)
+	}
+	if objectLockLegalHoldStatus != "" {
+		createMultipartUploadInput.ObjectLockLegalHoldStatus = s3Types.ObjectLockLegalHoldStatus(objectLockLegalHoldStatus)
+	}
+	if objectLockMode != "" {
+		createMultipartUploadInput.ObjectLockMode = s3Types.ObjectLockMode(objectLockMode)
+	}
+	if objectLockRetainUntilDate != "" {
+		t, err := time.Parse(time.RFC3339, objectLockRetainUntilDate)
+		if err != nil {
+			return 1, err
+		}
+		createMultipartUploadInput.ObjectLockRetainUntilDate = &t
 	}
 
 	var initialRate int64

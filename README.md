@@ -68,6 +68,12 @@ Parameters:
     	Do not sign requests. This does not work with Amazon S3, but may work with other S3 APIs.
   -no-verify-ssl
     	Do not verify SSL certificates.
+  -object-lock-legal-hold-status string
+    	Specifies whether a legal hold will be applied to this object. Possible values: ON, OFF.
+  -object-lock-mode string
+    	The Object Lock mode that you want to apply to this object. Possible values: GOVERNANCE, COMPLIANCE.
+  -object-lock-retain-until-date string
+    	The date and time when you want this object's Object Lock to expire. Must be formatted as a timestamp parameter. (e.g. "2022-03-14T15:14:15Z")
   -part-size string
     	Override automatic part size. (e.g. "128m")
   -profile string
