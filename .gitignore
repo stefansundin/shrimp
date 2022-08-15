@@ -5,6 +5,7 @@ Thumbs.db
 .~lock.*
 
 /vendor
+/release
 shrimp
 shrimp.exe
 SHA256SUMS
