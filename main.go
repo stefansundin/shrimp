@@ -52,7 +52,7 @@ func main() {
 
 func run() (int, error) {
 	var profile, region, bwlimit, partSizeRaw, endpointURL, caBundle, scheduleFn, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, expectedBucketOwner, tagging, storageClass, metadata, sse, sseCustomerAlgorithm, sseCustomerKey, sseKmsKeyId, checksumAlgorithm, objectLockLegalHoldStatus, objectLockMode, objectLockRetainUntilDate string
-	var bucketKeyEnabled, computeChecksum, noVerifySsl, noSignRequest, useAccelerateEndpoint, usePathStyle, mfaSecretFlag, dryrun, debug, versionFlag bool
+	var bucketKeyEnabled, computeChecksum, noVerifySsl, noSignRequest, useAccelerateEndpoint, usePathStyle, mfaSecretFlag, force, dryrun, debug, versionFlag bool
 	var mfaDuration time.Duration
 	var mfaSecret []byte
 	flag.StringVar(&profile, "profile", "", "Use a specific profile from your credential file.")
@@ -87,6 +87,7 @@ func run() (int, error) {
 	flag.BoolVar(&noSignRequest, "no-sign-request", false, "Do not sign requests. This does not work with Amazon S3, but may work with other S3 APIs.")
 	flag.BoolVar(&useAccelerateEndpoint, "use-accelerate-endpoint", false, "Use S3 Transfer Acceleration.")
 	flag.BoolVar(&usePathStyle, "use-path-style", false, "Use S3 Path Style.")
+	flag.BoolVar(&force, "force", false, "Overwrite existing object.")
 	flag.BoolVar(&dryrun, "dryrun", false, "Checks if the upload was started previously and how much was completed. (use in combination with -bwlimit to calculate remaining time)")
 	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
 	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
@@ -494,15 +495,18 @@ func run() (int, error) {
 	}
 
 	// Abort if the object already exists
-	obj, err := client.HeadObject(context.TODO(), &s3.HeadObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
-	})
-	if obj != nil || err == nil || !isSmithyErrorCode(err, 404) {
-		if obj != nil {
-			fmt.Fprintln(os.Stderr, "The object already exists in the S3 bucket. Please delete it first.")
+	if !force {
+		obj, err := client.HeadObject(context.TODO(), &s3.HeadObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
+		})
+		if obj != nil || err == nil || !isSmithyErrorCode(err, 404) {
+			if obj != nil {
+				fmt.Fprintln(os.Stderr, "The object already exists in the S3 bucket.")
+				fmt.Fprintln(os.Stderr, "Please delete it or use -force to overwrite the existing object.")
+			}
+			return 1, err
 		}
-		return 1, err
 	}
 
 	// Check if we should resume an upload

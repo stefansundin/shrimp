@@ -58,6 +58,8 @@ Parameters:
     	Override the S3 endpoint URL. (for use with S3 compatible APIs)
   -expected-bucket-owner string
     	The account ID of the expected bucket owner.
+  -force
+    	Overwrite existing object.
   -metadata string
     	A map of metadata to store with the object in S3. (JSON syntax is not supported)
   -mfa-duration duration
