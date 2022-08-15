@@ -112,9 +112,7 @@ func run() (int, error) {
 	if versionFlag {
 		fmt.Println(version)
 		return 0, nil
-	}
-
-	if flag.NArg() < 2 {
+	} else if flag.NArg() < 2 {
 		flag.Usage()
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Error: LocalPath and S3Uri parameters are required!")
@@ -126,19 +124,20 @@ func run() (int, error) {
 		fmt.Fprintln(os.Stderr, "I will probably replace the flag parsing library in the future to address this.")
 		return 1, nil
 	}
+
 	if endpointURL != "" {
 		if !strings.HasPrefix(endpointURL, "http://") && !strings.HasPrefix(endpointURL, "https://") {
-			return 1, errors.New("Error: the endpoint URL must start with http:// or https://.")
+			return 1, errors.New("Error: The endpoint URL must start with http:// or https://.")
 		}
 		if !usePathStyle {
 			u, err := url.Parse(endpointURL)
 			if err != nil {
-				return 1, errors.New("Error: unable to parse the endpoint URL.")
+				return 1, errors.New("Error: Unable to parse the endpoint URL.")
 			}
 			hostname := u.Hostname()
 			if hostname == "localhost" || net.ParseIP(hostname) != nil {
 				if debug {
-					fmt.Fprintln(os.Stderr, "Detected IP address in endpoint URL. Implicitly opting in for path style.")
+					fmt.Fprintln(os.Stderr, "Detected IP address in endpoint URL. Implicitly opting in to path style.")
 				}
 				usePathStyle = true
 			}
@@ -352,7 +351,7 @@ func run() (int, error) {
 		}
 	}
 	if computeChecksum && createMultipartUploadInput.Metadata["sha256sum"] == "" {
-		fmt.Fprintln(os.Stderr, "Computing checksum...")
+		fmt.Fprint(os.Stderr, "Computing SHA256 checksum... ")
 		sum, err := computeSha256Sum(file)
 		if err != nil {
 			return 1, err
@@ -361,18 +360,18 @@ func run() (int, error) {
 			createMultipartUploadInput.Metadata = make(map[string]string)
 		}
 		createMultipartUploadInput.Metadata["sha256sum"] = sum
+		fmt.Fprintln(os.Stderr, sum)
 		fmt.Fprintln(os.Stderr, "Adding checksum to SHA256SUMS...")
 		sumsFile, err := os.OpenFile("SHA256SUMS", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
-			return 1, err
+			return 1, fmt.Errorf("Error adding checksum to SHA256SUMS: %w", err)
 		}
 		defer sumsFile.Close()
 		line := fmt.Sprintf("%s  %s\n", sum, file)
 		_, err = sumsFile.WriteString(line)
 		if err != nil {
-			return 1, err
+			return 1, fmt.Errorf("Error adding checksum to SHA256SUMS: %w", err)
 		}
-		fmt.Fprintln(os.Stderr)
 	}
 
 	// Initialize the AWS SDK
