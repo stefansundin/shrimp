@@ -1,4 +1,4 @@
-VERSION = 0.0.1
+VERSION = 0.1.0
 LDFLAGS = -ldflags '-s -w' -gcflags=-trimpath=${PWD} -asmflags=-trimpath=${PWD}
 
 linux_amd64: export GOOS=linux

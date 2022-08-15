@@ -34,7 +34,7 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-const version = "0.0.1"
+const version = "0.1.0"
 
 func init() {
 	// Do not fail if a region is not specified anywhere
