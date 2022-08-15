@@ -186,30 +186,24 @@ func run() (int, error) {
 
 	// Construct the CreateMultipartUploadInput data
 	createMultipartUploadInput := s3.CreateMultipartUploadInput{
-		Bucket:       aws.String(bucket),
-		Key:          aws.String(key),
-		RequestPayer: s3Types.RequestPayer(requestPayer),
-	}
-	if contentType != "" {
-		createMultipartUploadInput.ContentType = aws.String(contentType)
-	}
-	if contentDisposition != "" {
-		createMultipartUploadInput.ContentDisposition = aws.String(contentDisposition)
-	}
-	if contentEncoding != "" {
-		createMultipartUploadInput.ContentEncoding = aws.String(contentEncoding)
-	}
-	if contentLanguage != "" {
-		createMultipartUploadInput.ContentLanguage = aws.String(contentLanguage)
-	}
-	if cacheControl != "" {
-		createMultipartUploadInput.CacheControl = aws.String(cacheControl)
-	}
-	if expectedBucketOwner != "" {
-		createMultipartUploadInput.ExpectedBucketOwner = aws.String(expectedBucketOwner)
-	}
-	if tagging != "" {
-		createMultipartUploadInput.Tagging = aws.String(tagging)
+		Bucket:                    aws.String(bucket),
+		Key:                       aws.String(key),
+		BucketKeyEnabled:          bucketKeyEnabled,
+		CacheControl:              aws.String(cacheControl),
+		ChecksumAlgorithm:         s3Types.ChecksumAlgorithm(checksumAlgorithm),
+		ContentDisposition:        aws.String(contentDisposition),
+		ContentEncoding:           aws.String(contentEncoding),
+		ContentLanguage:           aws.String(contentLanguage),
+		ContentType:               aws.String(contentType),
+		ExpectedBucketOwner:       aws.String(expectedBucketOwner),
+		ObjectLockLegalHoldStatus: s3Types.ObjectLockLegalHoldStatus(objectLockLegalHoldStatus),
+		ObjectLockMode:            s3Types.ObjectLockMode(objectLockMode),
+		RequestPayer:              s3Types.RequestPayer(requestPayer),
+		ServerSideEncryption:      s3Types.ServerSideEncryption(sse),
+		SSECustomerAlgorithm:      aws.String(sseCustomerAlgorithm),
+		SSECustomerKey:            aws.String(sseCustomerKey),
+		SSEKMSKeyId:               aws.String(sseKmsKeyId),
+		Tagging:                   aws.String(tagging),
 	}
 	if storageClass != "" {
 		createMultipartUploadInput.StorageClass = s3Types.StorageClass(storageClass)
@@ -229,30 +223,6 @@ func run() (int, error) {
 		} else {
 			return 1, err
 		}
-	}
-	if sse != "" {
-		createMultipartUploadInput.ServerSideEncryption = s3Types.ServerSideEncryption(sse)
-	}
-	if sseCustomerAlgorithm != "" {
-		createMultipartUploadInput.SSECustomerAlgorithm = aws.String(sseCustomerAlgorithm)
-	}
-	if sseCustomerKey != "" {
-		createMultipartUploadInput.SSECustomerKey = aws.String(sseCustomerKey)
-	}
-	if sseKmsKeyId != "" {
-		createMultipartUploadInput.SSEKMSKeyId = aws.String(sseKmsKeyId)
-	}
-	if bucketKeyEnabled {
-		createMultipartUploadInput.BucketKeyEnabled = true
-	}
-	if checksumAlgorithm != "" {
-		createMultipartUploadInput.ChecksumAlgorithm = s3Types.ChecksumAlgorithm(checksumAlgorithm)
-	}
-	if objectLockLegalHoldStatus != "" {
-		createMultipartUploadInput.ObjectLockLegalHoldStatus = s3Types.ObjectLockLegalHoldStatus(objectLockLegalHoldStatus)
-	}
-	if objectLockMode != "" {
-		createMultipartUploadInput.ObjectLockMode = s3Types.ObjectLockMode(objectLockMode)
 	}
 	if objectLockRetainUntilDate != "" {
 		t, err := parseTimestamp(objectLockRetainUntilDate)
@@ -800,24 +770,16 @@ func run() (int, error) {
 		go func() {
 			defer close(doneCh)
 			uploadPartInput := &s3.UploadPartInput{
-				Bucket:       aws.String(bucket),
-				Key:          aws.String(key),
-				UploadId:     aws.String(uploadId),
-				PartNumber:   partNumber,
-				Body:         reader,
-				RequestPayer: s3Types.RequestPayer(requestPayer),
-			}
-			if expectedBucketOwner != "" {
-				uploadPartInput.ExpectedBucketOwner = aws.String(expectedBucketOwner)
-			}
-			if sseCustomerAlgorithm != "" {
-				uploadPartInput.SSECustomerAlgorithm = aws.String(sseCustomerAlgorithm)
-			}
-			if sseCustomerKey != "" {
-				uploadPartInput.SSECustomerKey = aws.String(sseCustomerKey)
-			}
-			if checksumAlgorithm != "" {
-				uploadPartInput.ChecksumAlgorithm = s3Types.ChecksumAlgorithm(checksumAlgorithm)
+				Bucket:               aws.String(bucket),
+				Key:                  aws.String(key),
+				UploadId:             aws.String(uploadId),
+				PartNumber:           partNumber,
+				Body:                 reader,
+				ChecksumAlgorithm:    s3Types.ChecksumAlgorithm(checksumAlgorithm),
+				ExpectedBucketOwner:  aws.String(expectedBucketOwner),
+				RequestPayer:         s3Types.RequestPayer(requestPayer),
+				SSECustomerAlgorithm: aws.String(sseCustomerAlgorithm),
+				SSECustomerKey:       aws.String(sseCustomerKey),
 			}
 			uploadPart, uploadErr = client.UploadPart(context.TODO(), uploadPartInput)
 			if debug && uploadPart != nil {
@@ -1003,16 +965,10 @@ func run() (int, error) {
 		MultipartUpload: &s3Types.CompletedMultipartUpload{
 			Parts: parts,
 		},
-		RequestPayer: s3Types.RequestPayer(requestPayer),
-	}
-	if expectedBucketOwner != "" {
-		completeMultipartUploadInput.ExpectedBucketOwner = aws.String(expectedBucketOwner)
-	}
-	if sseCustomerAlgorithm != "" {
-		completeMultipartUploadInput.SSECustomerAlgorithm = aws.String(sseCustomerAlgorithm)
-	}
-	if sseCustomerKey != "" {
-		completeMultipartUploadInput.SSECustomerKey = aws.String(sseCustomerKey)
+		ExpectedBucketOwner:  aws.String(expectedBucketOwner),
+		RequestPayer:         s3Types.RequestPayer(requestPayer),
+		SSECustomerAlgorithm: aws.String(sseCustomerAlgorithm),
+		SSECustomerKey:       aws.String(sseCustomerKey),
 	}
 	completeMultipartUploadOutput, err := client.CompleteMultipartUpload(context.TODO(), completeMultipartUploadInput)
 	if err != nil {
