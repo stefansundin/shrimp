@@ -1,17 +1,18 @@
-shrimp is a small program that can reliably upload large files to Amazon S3. My personal use case is to upload large files to S3 over a slow residential connection, and shrimp is optimized for this use case.
+shrimp is a small program that can reliably upload large files to Amazon S3.
 
 Features:
 - shrimp supports most of the arguments used for `aws s3 cp`. In many cases you can simply replace `aws s3 cp` with `shrimp` and everything will work.
 - shrimp has interactive keyboard controls that lets you limit the bandwidth used for the upload (you can specify an initial limit with `-bwlimit`, e.g. `-bwlimit=2.5m` for 2.5 MB/s). While the upload is in progress, press <kbd>?</kbd> to see the available keyboard controls.
 - shrimp can automatically adjust the bandwidth limit based on a schedule. [See here for more information.](https://github.com/stefansundin/s3sha256sum/discussions/4)
 - shrimp can resume the upload in case it fails for whatever reason (just re-run the command). Unlike the aws cli, shrimp will never abort the multipart upload in case of failures ([please set up a lifecycle policy for this!](https://aws.amazon.com/blogs/aws-cloud-financial-management/discovering-and-deleting-incomplete-multipart-uploads-to-lower-amazon-s3-costs/)).
-- shrimp supports automatically attaching SHA256 checksums to the object metadata if a `SHA256SUMS` file is present in the working directory. Use `-compute-checksum` if you want shrimp to calculate the checksum and add it to the `SHA256SUMS` file. You can use [s3sha256sum](https://github.com/stefansundin/s3sha256sum) to verify the object after it has been uploaded. [See here for more information.](https://github.com/stefansundin/s3sha256sum/discussions/1)
+- shrimp supports the [Additional Checksum Algorithms feature released in February 2022](https://aws.amazon.com/blogs/aws/new-additional-checksum-algorithms-for-amazon-s3/). Use `-checksum-algorithm` to allow verification of the object without the need to download it, e.g. using [s3verify](https://github.com/stefansundin/s3verify).
+- shrimp also supports automatically attaching a SHA256 checksum to the object metadata if a `SHA256SUMS` file is present in the working directory. Use `-compute-checksum` if you want shrimp to calculate the checksum and add it to the `SHA256SUMS` file. You can use [s3sha256sum](https://github.com/stefansundin/s3sha256sum) to verify the object after it has been uploaded. The `-checksum-algorithm` feature somewhat supercedes this, but there are still uses for this checksum, especially for multi-part objects. [See here for more information.](https://github.com/stefansundin/s3sha256sum/discussions/1)
 
 Keep in mind:
 - shrimp will always use a multipart upload, so do not use it for small files.
 - shrimp uploads a single part at a time.
 
-Current status: **testing phase**. Please do not use it for important files just yet. Please report any bugs.
+I have used the program to upload several terabytes to Amazon S3 and I consider it stable and ready for use. Please give it a try and report any issues you may encounter.
 
 ## Installation
 
