@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.27.5
 	github.com/aws/smithy-go v1.12.1
 	github.com/pkg/term v1.1.0
+	github.com/stefansundin/go-zflag v1.1.1
 	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab
 )
 

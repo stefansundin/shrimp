@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"encoding/base32"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -22,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	flag "github.com/stefansundin/go-zflag"
 	"github.com/stefansundin/shrimp/flowrate"
 	"github.com/stefansundin/shrimp/terminal"
 
@@ -75,7 +75,7 @@ func run() (int, error) {
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
 	flag.StringVar(&requestPayer, "request-payer", "", "Confirms that the requester knows that they will be charged for the requests. Possible values: requester.")
 	flag.StringVar(&sse, "sse", "", "Specifies server-side encryption of the object in S3. Valid values are AES256 and aws:kms.")
-	flag.StringVar(&sseCustomerAlgorithm, "sse-c", "", "Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, -sse-c-key must be specified as well.")
+	flag.StringVar(&sseCustomerAlgorithm, "sse-c", "", "Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, --sse-c-key must be specified as well.")
 	flag.StringVar(&sseCustomerKey, "sse-c-key", "", "The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.")
 	flag.StringVar(&sseKmsKeyId, "sse-kms-key-id", "", "The customer-managed AWS Key Management Service (KMS) key ID that should be used to server-side encrypt the object in S3.")
 	flag.StringVar(&checksumAlgorithm, "checksum-algorithm", "", "The checksum algorithm to use for the object. Supported values: CRC32, CRC32C, SHA1, SHA256.")
@@ -91,7 +91,7 @@ func run() (int, error) {
 	flag.BoolVar(&useAccelerateEndpoint, "use-accelerate-endpoint", false, "Use S3 Transfer Acceleration.")
 	flag.BoolVar(&usePathStyle, "use-path-style", false, "Use S3 Path Style.")
 	flag.BoolVar(&force, "force", false, "Overwrite existing object.")
-	flag.BoolVar(&dryrun, "dryrun", false, "Checks if the upload was started previously and how much was completed. (use in combination with -bwlimit to calculate remaining time)")
+	flag.BoolVar(&dryrun, "dryrun", false, "Checks if the upload was started previously and how much was completed. (use in combination with --bwlimit to calculate remaining time)")
 	flag.BoolVar(&debug, "debug", false, "Turn on debug logging.")
 	flag.BoolVar(&versionFlag, "version", false, "Print version number.")
 	flag.Usage = func() {
@@ -118,14 +118,11 @@ func run() (int, error) {
 	} else if flag.NArg() < 2 {
 		flag.Usage()
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "Error: LocalPath and S3Uri parameters are required!")
-		return 1, nil
+		return 1, errors.New("Error: LocalPath and S3Uri parameters are required!")
 	} else if flag.NArg() > 2 {
 		flag.Usage()
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "Error: Unfortunately shrimp requires positional arguments (LocalPath and S3Uri) to be specified last.")
-		fmt.Fprintln(os.Stderr, "I will probably replace the flag parsing library in the future to address this.")
-		return 1, nil
+		return 1, errors.New("Error: Too many positional arguments!")
 	}
 
 	if endpointURL != "" {
@@ -150,7 +147,7 @@ func run() (int, error) {
 		fmt.Fprintln(os.Stderr, "Warning: MFA duration can not exceed 12 hours.")
 	}
 	if mfaSecretFlag {
-		fmt.Fprintln(os.Stderr, "Read more about the -mfa-secret feature here: https://github.com/stefansundin/shrimp/discussions/3")
+		fmt.Fprintln(os.Stderr, "Read more about the --mfa-secret feature here: https://github.com/stefansundin/shrimp/discussions/3")
 		secret, ok := os.LookupEnv("AWS_MFA_SECRET")
 		if ok {
 			fmt.Fprintln(os.Stderr, "MFA secret read from AWS_MFA_SECRET.")
@@ -315,7 +312,7 @@ func run() (int, error) {
 			return 1, err
 		} else if sum == "" {
 			if !computeChecksum {
-				fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file. Consider using -compute-checksum.")
+				fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file. Consider using --compute-checksum.")
 			}
 		} else {
 			if createMultipartUploadInput.Metadata == nil {
@@ -477,7 +474,7 @@ func run() (int, error) {
 		if obj != nil || err == nil || !isSmithyErrorCode(err, 404) {
 			if obj != nil {
 				fmt.Fprintln(os.Stderr, "The object already exists in the S3 bucket.")
-				fmt.Fprintln(os.Stderr, "Please delete it or use -force to overwrite the existing object.")
+				fmt.Fprintln(os.Stderr, "Please delete it or use --force to overwrite the existing object.")
 			}
 			return 1, err
 		}
@@ -531,7 +528,7 @@ func run() (int, error) {
 
 		if createMultipartUploadInput.StorageClass != "" &&
 			upload.StorageClass != createMultipartUploadInput.StorageClass {
-			return 1, fmt.Errorf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove -storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
+			return 1, fmt.Errorf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove --storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
 		}
 	}
 

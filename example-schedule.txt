@@ -1,9 +1,9 @@
-# Example schedule file. Use "-schedule filename.txt" to use feature.
+# Example schedule file. Use "--schedule filename.txt" to use feature.
 # See https://github.com/stefansundin/shrimp/discussions/4
 
 # Lines starting with "#" are ignored.
 # The schedule can include a default bandwidth limit (if omitted then unlimited is the default).
-# The -bwlimit switch overrides the default value specified here.
+# The --bwlimit switch overrides the default value specified here.
 # After the default, define a number of non-overlapping ranges that override the default.
 
 # The format is:

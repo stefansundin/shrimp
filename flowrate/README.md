@@ -2,7 +2,7 @@ Based on https://github.com/mxk/go-flowrate.
 
 Modified to allow seeking and to calculate a total progress.
 
-Optionally, it can also skip rate limiting on the first pass. This is necessary when transferring files over unencrypted HTTP, since the AWS SDK will in this case calculate a checksum of the payload before it initiates the request. This case will only happen when the user uses `-endpoint-url` with an `http://` endpoint.
+Optionally, it can also skip rate limiting on the first pass. This is necessary when transferring files over unencrypted HTTP, since the AWS SDK will in this case calculate a checksum of the payload before it initiates the request. This case will only happen when the user uses `--endpoint-url` with an `http://` endpoint.
 
 Here's a list of the calls that will occur:
 
