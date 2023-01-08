@@ -169,7 +169,7 @@ func run() (int, error) {
 		var err error
 		mfaSecret, err = base32.StdEncoding.DecodeString(secret)
 		if err != nil {
-			return 1, errors.New("Invalid MFA secret.")
+			return 1, errors.New("Error: Invalid MFA secret.")
 		}
 	}
 	file := flag.Arg(0)
@@ -218,7 +218,7 @@ func run() (int, error) {
 		if m, err := parseMetadata(metadata); err == nil {
 			createMultipartUploadInput.Metadata = m
 		} else {
-			return 1, err
+			return 1, fmt.Errorf("Error: %w", err)
 		}
 	}
 	if objectLockRetainUntilDate != "" {
@@ -309,7 +309,7 @@ func run() (int, error) {
 	if !errors.Is(err, fs.ErrNotExist) {
 		sum, err := lookupChecksum("SHA256SUMS", file)
 		if err != nil {
-			return 1, err
+			return 1, fmt.Errorf("Error: %w", err)
 		} else if sum == "" {
 			if !computeChecksum {
 				fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file. Consider using --compute-checksum.")
@@ -515,7 +515,7 @@ func run() (int, error) {
 
 		// fmt.Fprintf(os.Stderr, "Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
 		if uploadId != "" {
-			return 1, errors.New("Error: more than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
+			return 1, errors.New("Error: More than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
 		}
 		uploadId = *upload.UploadId
 		fmt.Fprintf(os.Stderr, "Found an upload in progress with upload id: %s\n", uploadId)
@@ -528,7 +528,7 @@ func run() (int, error) {
 
 		if createMultipartUploadInput.StorageClass != "" &&
 			upload.StorageClass != createMultipartUploadInput.StorageClass {
-			return 1, fmt.Errorf("Error: existing upload uses the storage class %s. You requested %s. Either make them match or remove --storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
+			return 1, fmt.Errorf("Error: Existing upload uses the storage class %s. You requested %s. Either make them match or remove --storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
 		}
 	}
 
@@ -595,12 +595,12 @@ func run() (int, error) {
 		sort.Ints(partNumbers)
 		for i, partNumber := range partNumbers {
 			if partNumber != i+1 {
-				return 1, fmt.Errorf("Error: existing parts are not contiguous (part %d is missing). Can not handle this case yet.\n", i+1)
+				return 1, fmt.Errorf("Error: Existing parts are not contiguous (part %d is missing). Can not handle this case yet.\n", i+1)
 			}
 		}
 
 		if offset > fileSize {
-			return 1, errors.New("Error: size of parts already uploaded is greater than local file size.")
+			return 1, errors.New("Error: Size of parts already uploaded is greater than local file size.")
 		}
 		fmt.Fprintf(os.Stderr, "%s remaining.\n", formatFilesize(fileSize-offset))
 	}
@@ -702,7 +702,7 @@ func run() (int, error) {
 				start, end := block.next()
 
 				for time.Now().Before(start) {
-					time.Sleep(minDuration(time.Minute, start.Sub(time.Now())))
+					time.Sleep(minDuration(time.Minute, time.Until(start)))
 				}
 
 				if !paused && rate != block.rate {
@@ -715,7 +715,7 @@ func run() (int, error) {
 				}
 
 				for time.Now().Before(end) {
-					time.Sleep(minDuration(time.Minute, end.Sub(time.Now())))
+					time.Sleep(minDuration(time.Minute, time.Until(end)))
 				}
 
 				// Check if the next block is right after the one we just did, otherwise reset to defaultRate
@@ -983,3 +983,5 @@ func run() (int, error) {
 
 	return 0, nil
 }
+
+//lint:file-ignore ST1005 Some errors are printed as diagnostic output and need proper punctuation

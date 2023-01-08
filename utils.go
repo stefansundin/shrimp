@@ -178,7 +178,7 @@ func parseMetadata(s string) (map[string]string, error) {
 	for _, kv := range strings.Split(s, ",") {
 		e := strings.SplitN(kv, "=", 2)
 		if len(e) < 2 {
-			return nil, errors.New("Malformed metadata")
+			return nil, errors.New("Malformed metadata.")
 		}
 		key := e[0]
 		value := e[1]
@@ -252,7 +252,7 @@ func lookupChecksum(sumsFn string, fn string) (string, error) {
 		sum := line[0:64]
 		mid := line[64:66]
 		if mid != "  " && mid != " *" {
-			return "", errors.New("Unsupported SHA256SUMS format")
+			return "", errors.New("Unsupported SHA256SUMS format.")
 		}
 		path, err := filepath.Abs(line[66:])
 		if err != nil {
@@ -328,3 +328,5 @@ func generateOTP(secretBytes []byte, counter uint64, hashAlg func() hash.Hash, d
 	mod := int32(value % int64(math.Pow10(digits)))
 	return fmt.Sprintf(fmt.Sprintf("%%0%dd", digits), mod), nil
 }
+
+//lint:file-ignore ST1005 Some errors are printed as diagnostic output and need proper punctuation

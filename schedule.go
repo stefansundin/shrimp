@@ -42,7 +42,7 @@ func parseWeekday(s string) (time.Weekday, error) {
 	case "sun", "sunday":
 		return time.Sunday, nil
 	default:
-		return -1, errors.New(fmt.Sprintf("invalid week day: %s", s))
+		return -1, fmt.Errorf("invalid week day: %s", s)
 	}
 }
 
@@ -78,17 +78,17 @@ func readSchedule(fn string) (*Schedule, error) {
 
 		parts := strings.Split(line, ":")
 		if len(parts) != 2 {
-			return nil, errors.New(fmt.Sprintf("invalid format on line %d (expected one colon)", lineNo))
+			return nil, fmt.Errorf("invalid format on line %d (expected one colon)", lineNo)
 		}
 
 		temporalSpec := strings.Split(strings.TrimSpace(parts[0]), " ")
 		if len(temporalSpec) != 2 {
-			return nil, errors.New(fmt.Sprintf("invalid format on line %d (missing weekday or time spec)", lineNo))
+			return nil, fmt.Errorf("invalid format on line %d (missing weekday or time spec)", lineNo)
 		}
 
 		weekdaySpec := strings.Split(temporalSpec[0], "-")
 		if len(weekdaySpec) > 2 {
-			return nil, errors.New(fmt.Sprintf("invalid format on line %d (too many '-' characters)", lineNo))
+			return nil, fmt.Errorf("invalid format on line %d (too many '-' characters)", lineNo)
 		}
 
 		startWeekday, err := parseWeekday(weekdaySpec[0])
@@ -112,10 +112,10 @@ func readSchedule(fn string) (*Schedule, error) {
 
 		timeRange := strings.Split(temporalSpec[1], "-")
 		if len(timeRange) != 2 {
-			return nil, errors.New(fmt.Sprintf("invalid format on line %d (bad time range)", lineNo))
+			return nil, fmt.Errorf("invalid format on line %d (bad time range)", lineNo)
 		}
 		if len(timeRange[0]) != 4 || len(timeRange[1]) != 4 {
-			return nil, errors.New(fmt.Sprintf("invalid format on line %d (bad time range). missing leading zero?", lineNo))
+			return nil, fmt.Errorf("invalid format on line %d (bad time range). missing leading zero?", lineNo)
 		}
 		startHour, err := strconv.Atoi(timeRange[0][0:2])
 		if err != nil {
@@ -137,7 +137,7 @@ func readSchedule(fn string) (*Schedule, error) {
 			endHour > 23 || endMinute > 59 ||
 			endHour < startHour ||
 			(startHour == endHour && endMinute < startMinute) {
-			return nil, errors.New(fmt.Sprintf("invalid format on line %d (bad time spec)", lineNo))
+			return nil, fmt.Errorf("invalid format on line %d (bad time spec)", lineNo)
 		}
 
 		rate, err := parseRate(strings.TrimSpace(parts[1]))
