@@ -485,52 +485,54 @@ func run() (int, error) {
 	// Check if we should resume an upload
 	fmt.Fprintln(os.Stderr, "Checking if this upload is already in progress.")
 	var uploadId string
-	// TODO: Switch this to a paginator when aws-sdk-go-v2 supports it?
-	outputListMultipartUploads, err := client.ListMultipartUploads(context.TODO(), &s3.ListMultipartUploadsInput{
+	paginatorListMultipartUploads := s3.NewListMultipartUploadsPaginator(client, &s3.ListMultipartUploadsInput{
 		Bucket: aws.String(bucket),
 		Prefix: aws.String(key),
 		// ListMultipartUploadsInput is missing RequestPayer, so we work around it with a custom middleware. https://github.com/aws/aws-sdk-go-v2/issues/1666
 		// RequestPayer: s3Types.RequestPayer(requestPayer),
-	}, func(o *s3.Options) {
-		if requestPayer != "" {
-			o.APIOptions = append(o.APIOptions, func(s *middleware.Stack) error {
-				return s.Finalize.Add(middleware.FinalizeMiddlewareFunc("RequestPayer",
-					func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (
-						out middleware.FinalizeOutput, metadata middleware.Metadata, err error,
-					) {
-						req := in.Request.(*smithyhttp.Request)
-						req.Header.Set("X-Amz-Request-Payer", requestPayer)
-						in.Request = req
-						return next.HandleFinalize(ctx, in)
-					},
-				), middleware.Before)
-			})
-		}
 	})
-	if err != nil {
-		return 1, err
-	}
-	for _, upload := range outputListMultipartUploads.Uploads {
-		if *upload.Key != key {
-			continue
-		}
-
-		// fmt.Fprintf(os.Stderr, "Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
-		if uploadId != "" {
-			return 1, errors.New("Error: More than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
-		}
-		uploadId = *upload.UploadId
-		fmt.Fprintf(os.Stderr, "Found an upload in progress with upload id: %s\n", uploadId)
-
-		localLocation, err := time.LoadLocation("Local")
+	for paginatorListMultipartUploads.HasMorePages() {
+		page, err := paginatorListMultipartUploads.NextPage(context.TODO(), func(o *s3.Options) {
+			if requestPayer != "" {
+				o.APIOptions = append(o.APIOptions, func(s *middleware.Stack) error {
+					return s.Finalize.Add(middleware.FinalizeMiddlewareFunc("RequestPayer",
+						func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (
+							out middleware.FinalizeOutput, metadata middleware.Metadata, err error,
+						) {
+							req := in.Request.(*smithyhttp.Request)
+							req.Header.Set("X-Amz-Request-Payer", requestPayer)
+							in.Request = req
+							return next.HandleFinalize(ctx, in)
+						},
+					), middleware.Before)
+				})
+			}
+		})
 		if err != nil {
 			return 1, err
 		}
-		fmt.Fprintf(os.Stderr, "Upload started at %v.\n", upload.Initiated.In(localLocation))
+		for _, upload := range page.Uploads {
+			if *upload.Key != key {
+				continue
+			}
 
-		if createMultipartUploadInput.StorageClass != "" &&
-			upload.StorageClass != createMultipartUploadInput.StorageClass {
-			return 1, fmt.Errorf("Error: Existing upload uses the storage class %s. You requested %s. Either make them match or remove --storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
+			// fmt.Fprintf(os.Stderr, "Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
+			if uploadId != "" {
+				return 1, errors.New("Error: More than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
+			}
+			uploadId = *upload.UploadId
+			fmt.Fprintf(os.Stderr, "Found an upload in progress with upload id: %s\n", uploadId)
+
+			localLocation, err := time.LoadLocation("Local")
+			if err != nil {
+				return 1, err
+			}
+			fmt.Fprintf(os.Stderr, "Upload started at %v.\n", upload.Initiated.In(localLocation))
+
+			if createMultipartUploadInput.StorageClass != "" &&
+				upload.StorageClass != createMultipartUploadInput.StorageClass {
+				return 1, fmt.Errorf("Error: Existing upload uses the storage class %s. You requested %s. Either make them match or remove --storage-class.\n", upload.StorageClass, createMultipartUploadInput.StorageClass)
+			}
 		}
 	}
 
