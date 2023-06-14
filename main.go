@@ -894,7 +894,7 @@ func run() (int, error) {
 					fmt.Fprintln(os.Stderr)
 					fmt.Fprintln(os.Stderr, "i       - print information about the upload")
 					fmt.Fprintln(os.Stderr, "u       - set to unlimited transfer rate")
-					fmt.Fprintln(os.Stderr, "r       - restore initial transfer limit (from -bwlimit)")
+					fmt.Fprintln(os.Stderr, "r       - restore initial transfer limit (from --bwlimit)")
 					fmt.Fprintln(os.Stderr, "a s d f - increase transfer limit by 1, 10, 100, or 250 kB/s")
 					fmt.Fprintln(os.Stderr, "z x c v - decrease transfer limit by 1, 10, 100, or 250 kB/s")
 					fmt.Fprintln(os.Stderr, "0-9     - limit the transfer rate to 0.X MB/s")
