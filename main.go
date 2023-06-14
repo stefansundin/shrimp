@@ -74,7 +74,7 @@ func run() (int, error) {
 	flag.StringVar(&storageClass, "storage-class", "", "Storage class. Known values: "+strings.Join(knownStorageClasses(), ", ")+".")
 	flag.StringVar(&metadata, "metadata", "", "A map of metadata to store with the object in S3. (JSON syntax is not supported)")
 	flag.StringVar(&requestPayer, "request-payer", "", "Confirms that the requester knows that they will be charged for the requests. Possible values: requester.")
-	flag.StringVar(&sse, "sse", "", "Specifies server-side encryption of the object in S3. Valid values are AES256 and aws:kms.")
+	flag.StringVar(&sse, "sse", "", "Specifies server-side encryption of the object in S3. Possible values: AES256, aws:kms, aws:kms:dsse.")
 	flag.StringVar(&sseCustomerAlgorithm, "sse-c", "", "Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, --sse-c-key must be specified as well.")
 	flag.StringVar(&sseCustomerKey, "sse-c-key", "", "The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.")
 	flag.StringVar(&sseKmsKeyId, "sse-kms-key-id", "", "The customer-managed AWS Key Management Service (KMS) key ID that should be used to server-side encrypt the object in S3.")

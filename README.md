@@ -61,7 +61,7 @@ Parameters:
       --region string                          The bucket region. Avoids one API call.
       --request-payer string                   Confirms that the requester knows that they will be charged for the requests. Possible values: requester.
       --schedule string                        Schedule file to use for automatically adjusting the bandwidth limit (see https://github.com/stefansundin/shrimp/discussions/4).
-      --sse string                             Specifies server-side encryption of the object in S3. Valid values are AES256 and aws:kms.
+      --sse string                             Specifies server-side encryption of the object in S3. Possible values: AES256, aws:kms, aws:kms:dsse.
       --sse-c string                           Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, --sse-c-key must be specified as well.
       --sse-c-key string                       The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.
       --sse-kms-key-id string                  The customer-managed AWS Key Management Service (KMS) key ID that should be used to server-side encrypt the object in S3.
