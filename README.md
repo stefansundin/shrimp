@@ -65,7 +65,7 @@ Parameters:
       --sse-c string                           Specifies server-side encryption using customer provided keys of the the object in S3. AES256 is the only valid value. If you provide this value, --sse-c-key must be specified as well.
       --sse-c-key string                       The customer-provided encryption key to use to server-side encrypt the object in S3. The key provided should not be base64 encoded.
       --sse-kms-key-id string                  The customer-managed AWS Key Management Service (KMS) key ID that should be used to server-side encrypt the object in S3.
-      --storage-class string                   Storage class. Known values: STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE, OUTPOSTS, GLACIER_IR.
+      --storage-class string                   Storage class. Known values: STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE, OUTPOSTS, GLACIER_IR, SNOW.
       --tagging string                         The tag-set for the object. The tag-set must be encoded as URL Query parameters.
       --use-accelerate-endpoint                Use S3 Transfer Acceleration.
       --use-path-style                         Use S3 Path Style.
