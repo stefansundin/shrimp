@@ -305,43 +305,45 @@ func run() (int, error) {
 	defer f.Close()
 
 	// Look for a SHA256SUMS file and get this file's hash
-	_, err = os.Stat("SHA256SUMS")
-	if !errors.Is(err, fs.ErrNotExist) {
-		sum, err := lookupChecksum("SHA256SUMS", file)
-		if err != nil {
-			return 1, fmt.Errorf("Error: %w", err)
-		} else if sum == "" {
-			if !computeChecksum {
-				fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file. Consider using --compute-checksum.")
+	if !dryrun {
+		_, err = os.Stat("SHA256SUMS")
+		if !errors.Is(err, fs.ErrNotExist) {
+			sum, err := lookupChecksum("SHA256SUMS", file)
+			if err != nil {
+				return 1, fmt.Errorf("Error: %w", err)
+			} else if sum == "" {
+				if !computeChecksum {
+					fmt.Fprintln(os.Stderr, "Warning: SHA256SUMS file is present but does not have an entry for this file. Consider using --compute-checksum.")
+				}
+			} else {
+				if createMultipartUploadInput.Metadata == nil {
+					createMultipartUploadInput.Metadata = make(map[string]string)
+				}
+				createMultipartUploadInput.Metadata["sha256sum"] = sum
 			}
-		} else {
+		}
+		if computeChecksum && createMultipartUploadInput.Metadata["sha256sum"] == "" {
+			fmt.Fprint(os.Stderr, "Computing SHA256 checksum... ")
+			sum, err := computeSha256Sum(file)
+			if err != nil {
+				return 1, err
+			}
 			if createMultipartUploadInput.Metadata == nil {
 				createMultipartUploadInput.Metadata = make(map[string]string)
 			}
 			createMultipartUploadInput.Metadata["sha256sum"] = sum
-		}
-	}
-	if computeChecksum && createMultipartUploadInput.Metadata["sha256sum"] == "" {
-		fmt.Fprint(os.Stderr, "Computing SHA256 checksum... ")
-		sum, err := computeSha256Sum(file)
-		if err != nil {
-			return 1, err
-		}
-		if createMultipartUploadInput.Metadata == nil {
-			createMultipartUploadInput.Metadata = make(map[string]string)
-		}
-		createMultipartUploadInput.Metadata["sha256sum"] = sum
-		fmt.Fprintln(os.Stderr, sum)
-		fmt.Fprintln(os.Stderr, "Adding checksum to SHA256SUMS...")
-		sumsFile, err := os.OpenFile("SHA256SUMS", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-		if err != nil {
-			return 1, fmt.Errorf("Error adding checksum to SHA256SUMS: %w", err)
-		}
-		defer sumsFile.Close()
-		line := fmt.Sprintf("%s  %s\n", sum, file)
-		_, err = sumsFile.WriteString(line)
-		if err != nil {
-			return 1, fmt.Errorf("Error adding checksum to SHA256SUMS: %w", err)
+			fmt.Fprintln(os.Stderr, sum)
+			fmt.Fprintln(os.Stderr, "Adding checksum to SHA256SUMS...")
+			sumsFile, err := os.OpenFile("SHA256SUMS", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+			if err != nil {
+				return 1, fmt.Errorf("Error adding checksum to SHA256SUMS: %w", err)
+			}
+			defer sumsFile.Close()
+			line := fmt.Sprintf("%s  %s\n", sum, file)
+			_, err = sumsFile.WriteString(line)
+			if err != nil {
+				return 1, fmt.Errorf("Error adding checksum to SHA256SUMS: %w", err)
+			}
 		}
 	}
 
