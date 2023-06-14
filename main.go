@@ -663,6 +663,7 @@ func run() (int, error) {
 	interrupted := false
 	paused := false
 	waitingToUnpause := false
+	waitingAfterError := false
 
 	// Trap Ctrl-C signal
 	signalChannel := make(chan os.Signal, 1)
@@ -672,7 +673,7 @@ func run() (int, error) {
 			if sig != os.Interrupt {
 				continue
 			}
-			if interrupted {
+			if interrupted || waitingAfterError {
 				if oldTerminalState != nil {
 					terminal.RestoreTerminal(oldTerminalState)
 				}
@@ -945,7 +946,9 @@ func run() (int, error) {
 			}
 			fmt.Fprintln(os.Stderr, "Waiting 10 seconds and then retrying.")
 			fmt.Fprintln(os.Stderr)
+			waitingAfterError = true
 			time.Sleep(10 * time.Second)
+			waitingAfterError = false
 		}
 	}
 	signal.Reset(os.Interrupt)
