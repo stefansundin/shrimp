@@ -30,8 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 const version = "0.2.0"
@@ -486,28 +484,12 @@ func run() (int, error) {
 	fmt.Fprintln(os.Stderr, "Checking if this upload is already in progress.")
 	var uploadId string
 	paginatorListMultipartUploads := s3.NewListMultipartUploadsPaginator(client, &s3.ListMultipartUploadsInput{
-		Bucket: aws.String(bucket),
-		Prefix: aws.String(key),
-		// ListMultipartUploadsInput is missing RequestPayer, so we work around it with a custom middleware. https://github.com/aws/aws-sdk-go-v2/issues/1666
-		// RequestPayer: s3Types.RequestPayer(requestPayer),
+		Bucket:       aws.String(bucket),
+		Prefix:       aws.String(key),
+		RequestPayer: s3Types.RequestPayer(requestPayer),
 	})
 	for paginatorListMultipartUploads.HasMorePages() {
-		page, err := paginatorListMultipartUploads.NextPage(context.TODO(), func(o *s3.Options) {
-			if requestPayer != "" {
-				o.APIOptions = append(o.APIOptions, func(s *middleware.Stack) error {
-					return s.Finalize.Add(middleware.FinalizeMiddlewareFunc("RequestPayer",
-						func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (
-							out middleware.FinalizeOutput, metadata middleware.Metadata, err error,
-						) {
-							req := in.Request.(*smithyhttp.Request)
-							req.Header.Set("X-Amz-Request-Payer", requestPayer)
-							in.Request = req
-							return next.HandleFinalize(ctx, in)
-						},
-					), middleware.Before)
-				})
-			}
-		})
+		page, err := paginatorListMultipartUploads.NextPage(context.TODO())
 		if err != nil {
 			return 1, err
 		}
