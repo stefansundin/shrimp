@@ -491,7 +491,6 @@ func run() (int, error) {
 	var uploadId string
 	paginatorListMultipartUploads := s3.NewListMultipartUploadsPaginator(client, &s3.ListMultipartUploadsInput{
 		Bucket:       aws.String(bucket),
-		Prefix:       aws.String(key),
 		RequestPayer: s3Types.RequestPayer(requestPayer),
 	})
 	for paginatorListMultipartUploads.HasMorePages() {
