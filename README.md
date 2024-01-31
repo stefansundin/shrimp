@@ -71,3 +71,5 @@ Parameters:
       --use-path-style                         Use S3 Path Style.
       --version                                Print version number.
 ```
+
+To use S3 dual-stack endpoints, configure the environment variable `AWS_USE_DUALSTACK_ENDPOINT=true`.

@@ -34,11 +34,21 @@ import (
 
 const version = "0.2.0"
 
+var useDualStackEndpoint aws.DualStackEndpointState
+
 func init() {
 	// Do not fail if a region is not specified anywhere
 	// This is only used for the first call that looks up the bucket region
 	if _, present := os.LookupEnv("AWS_DEFAULT_REGION"); !present {
 		os.Setenv("AWS_DEFAULT_REGION", "us-east-1")
+	}
+	// Dual-stack endpoint configuration
+	if v, ok := os.LookupEnv("AWS_USE_DUALSTACK_ENDPOINT"); ok {
+		if v == "true" {
+			useDualStackEndpoint = aws.DualStackEndpointStateEnabled
+		} else {
+			useDualStackEndpoint = aws.DualStackEndpointStateDisabled
+		}
 	}
 }
 
@@ -414,9 +424,7 @@ func run() (int, error) {
 	}
 	client := s3.NewFromConfig(cfg,
 		func(o *s3.Options) {
-			if v, ok := os.LookupEnv("AWS_USE_DUALSTACK_ENDPOINT"); !ok || v != "false" {
-				o.EndpointOptions.UseDualStackEndpoint = aws.DualStackEndpointStateEnabled
-			}
+			o.EndpointOptions.UseDualStackEndpoint = useDualStackEndpoint
 			if noSignRequest {
 				o.Credentials = aws.AnonymousCredentials{}
 			}
@@ -448,9 +456,7 @@ func run() (int, error) {
 			fmt.Fprintf(os.Stderr, "Bucket region: %s\n", bucketRegion)
 		}
 		client = s3.NewFromConfig(cfg, func(o *s3.Options) {
-			if v, ok := os.LookupEnv("AWS_USE_DUALSTACK_ENDPOINT"); !ok || v != "false" {
-				o.EndpointOptions.UseDualStackEndpoint = aws.DualStackEndpointStateEnabled
-			}
+			o.EndpointOptions.UseDualStackEndpoint = useDualStackEndpoint
 			if noSignRequest {
 				o.Credentials = aws.AnonymousCredentials{}
 			}
