@@ -183,7 +183,7 @@ func run() (int, error) {
 	createMultipartUploadInput := s3.CreateMultipartUploadInput{
 		Bucket:                    aws.String(bucket),
 		Key:                       aws.String(key),
-		BucketKeyEnabled:          bucketKeyEnabled,
+		BucketKeyEnabled:          aws.Bool(bucketKeyEnabled),
 		CacheControl:              aws.String(cacheControl),
 		ChecksumAlgorithm:         s3Types.ChecksumAlgorithm(checksumAlgorithm),
 		ContentDisposition:        aws.String(contentDisposition),
@@ -494,15 +494,15 @@ func run() (int, error) {
 			return 1, err
 		}
 		for _, upload := range page.Uploads {
-			if *upload.Key != key {
+			if aws.ToString(upload.Key) != key {
 				continue
 			}
 
-			// fmt.Fprintf(os.Stderr, "Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", *upload.Key, upload.Initiated, *upload.Initiator.DisplayName, *upload.Initiator.ID, *upload.Owner.DisplayName, *upload.Owner.ID, upload.StorageClass, *upload.UploadId)
+			// fmt.Fprintf(os.Stderr, "Upload: {Key: %s, Initiated: %s, Initiator: {%s %s}, Owner: {%s %s}, StorageClass: %s, UploadId: %s}\n", aws.ToString(upload.Key), upload.Initiated, aws.ToString(upload.Initiator.DisplayName), aws.ToString(upload.Initiator.ID), aws.ToString(upload.Owner.DisplayName), aws.ToString(upload.Owner.ID), upload.StorageClass, aws.ToString(upload.UploadId))
 			if uploadId != "" {
 				return 1, errors.New("Error: More than one upload for this key is in progress. Please manually abort duplicated multipart uploads.")
 			}
-			uploadId = *upload.UploadId
+			uploadId = aws.ToString(upload.UploadId)
 			fmt.Fprintf(os.Stderr, "Found an upload in progress with upload id: %s\n", uploadId)
 
 			localLocation, err := time.LoadLocation("Local")
@@ -532,7 +532,7 @@ func run() (int, error) {
 				return 1, err
 			}
 
-			uploadId = *outputCreateMultipartUpload.UploadId
+			uploadId = aws.ToString(outputCreateMultipartUpload.UploadId)
 			fmt.Fprintf(os.Stderr, "Upload id: %v\n", uploadId)
 		}
 	} else {
@@ -542,17 +542,23 @@ func run() (int, error) {
 			UploadId:     aws.String(uploadId),
 			RequestPayer: s3Types.RequestPayer(requestPayer),
 		})
+		var part1Size int64
 		for paginatorListParts.HasMorePages() {
 			page, err := paginatorListParts.NextPage(context.TODO())
 			if err != nil {
 				return 1, err
+			}
+			if part1Size == 0 && len(page.Parts) > 0 {
+				part1Size = aws.ToInt64(page.Parts[0].Size)
 			}
 			partNumber += int32(len(page.Parts))
 			for _, part := range page.Parts {
 				if debug {
 					fmt.Fprintf(os.Stderr, "Part: %s\n", string(jsonMustMarshal(part)))
 				}
-				offset += part.Size
+				partNumber := aws.ToInt32(part.PartNumber)
+				partSize := aws.ToInt64(part.Size)
+				offset += partSize
 				parts = append(parts, s3Types.CompletedPart{
 					PartNumber:     part.PartNumber,
 					ETag:           part.ETag,
@@ -563,10 +569,10 @@ func run() (int, error) {
 				})
 				// Check for potential problems (if not the last part)
 				if offset != fileSize {
-					if part.Size < 5*MiB {
-						fmt.Fprintf(os.Stderr, "Warning: Part %d has size %s, which is less than 5 MiB, and it is not the last part in the upload. This upload will fail with an error!\n", part.PartNumber, formatFilesize(part.Size))
-					} else if part.Size != page.Parts[0].Size {
-						fmt.Fprintf(os.Stderr, "Warning: Part %d has an inconsistent size (%d bytes) compared to part 1 (%d bytes).\n", part.PartNumber, part.Size, page.Parts[0].Size)
+					if partSize < 5*MiB {
+						fmt.Fprintf(os.Stderr, "Warning: Part %d has size %s, which is less than 5 MiB, and it is not the last part in the upload. This upload will fail with an error!\n", partNumber, formatFilesize(partSize))
+					} else if partSize != part1Size {
+						fmt.Fprintf(os.Stderr, "Warning: Part %d has an inconsistent size (%d bytes) compared to part 1 (%d bytes).\n", partNumber, partSize, part1Size)
 					}
 				}
 			}
@@ -576,7 +582,7 @@ func run() (int, error) {
 		// Check if there are any gaps in the existing parts
 		partNumbers := make([]int, len(parts))
 		for i, part := range parts {
-			partNumbers[i] = int(part.PartNumber)
+			partNumbers[i] = int(aws.ToInt32(part.PartNumber))
 		}
 		sort.Ints(partNumbers)
 		for i, partNumber := range partNumbers {
@@ -757,7 +763,7 @@ func run() (int, error) {
 				Bucket:               aws.String(bucket),
 				Key:                  aws.String(key),
 				UploadId:             aws.String(uploadId),
-				PartNumber:           partNumber,
+				PartNumber:           aws.Int32(partNumber),
 				Body:                 reader,
 				ChecksumAlgorithm:    s3Types.ChecksumAlgorithm(checksumAlgorithm),
 				ExpectedBucketOwner:  aws.String(expectedBucketOwner),
@@ -912,7 +918,7 @@ func run() (int, error) {
 			}
 
 			parts = append(parts, s3Types.CompletedPart{
-				PartNumber:     partNumber,
+				PartNumber:     aws.Int32(partNumber),
 				ETag:           uploadPart.ETag,
 				ChecksumCRC32:  uploadPart.ChecksumCRC32,
 				ChecksumCRC32C: uploadPart.ChecksumCRC32C,
