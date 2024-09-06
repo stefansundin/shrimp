@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	s3autoregion "github.com/stefansundin/aws-sdk-go-v2-s3autoregion"
 )
 
 const version = "0.2.0"
@@ -373,15 +374,6 @@ func run() (int, error) {
 				}
 				o.CustomCABundle = f
 			}
-			if noVerifySsl {
-				o.HTTPClient = &http.Client{
-					Transport: &http.Transport{
-						TLSClientConfig: &tls.Config{
-							InsecureSkipVerify: true,
-						},
-					},
-				}
-			}
 			if debug {
 				var lm aws.ClientLogMode = aws.LogRequest | aws.LogResponse
 				o.ClientLogMode = &lm
@@ -422,7 +414,17 @@ func run() (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	client := s3.NewFromConfig(cfg,
+	client := s3autoregion.NewFromConfig(cfg,
+		&s3autoregion.ExtendedOptions{
+			CacheSize: 50,
+			TransportOptionsFn: func(t *http.Transport) {
+				if noVerifySsl {
+					t.TLSClientConfig = &tls.Config{
+						InsecureSkipVerify: true,
+					}
+				}
+			},
+		},
 		func(o *s3.Options) {
 			o.EndpointOptions.UseDualStackEndpoint = useDualStackEndpoint
 			if noSignRequest {
@@ -443,39 +445,14 @@ func run() (int, error) {
 		})
 	encryptedEndpoint := (endpointURL == "" || strings.HasPrefix(endpointURL, "https://"))
 
-	// Get the bucket location
-	if endpointURL == "" && region == "" {
-		bucketLocationOutput, err := client.GetBucketLocation(context.TODO(), &s3.GetBucketLocationInput{
-			Bucket: aws.String(bucket),
-		})
-		if err != nil {
-			return 1, err
-		}
-		bucketRegion := normalizeBucketLocation(bucketLocationOutput.LocationConstraint)
-		if debug {
-			fmt.Fprintf(os.Stderr, "Bucket region: %s\n", bucketRegion)
-		}
-		client = s3.NewFromConfig(cfg, func(o *s3.Options) {
-			o.EndpointOptions.UseDualStackEndpoint = useDualStackEndpoint
-			if noSignRequest {
-				o.Credentials = aws.AnonymousCredentials{}
-			}
-			o.Region = bucketRegion
-			if usePathStyle {
-				o.UsePathStyle = true
-			}
-			if useAccelerateEndpoint {
-				o.UseAccelerate = true
-			}
-		})
-	}
-
 	// Abort if the object already exists
 	if !force {
-		obj, err := client.HeadObject(context.TODO(), &s3.HeadObjectInput{
+		// Note: This is using GetObject instead of HeadObject to work around a discrepancy in the S3 Accelerate error handling
+		obj, err := client.GetObject(context.TODO(), &s3.GetObjectInput{
 			Bucket:       aws.String(bucket),
 			Key:          aws.String(key),
 			RequestPayer: s3Types.RequestPayer(requestPayer),
+			Range:        aws.String("bytes=0-1"),
 		})
 		if obj != nil || err == nil || !isSmithyErrorCode(err, 404) {
 			if obj != nil {
