@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/secret"
 	"sort"
 	"strings"
 	"time"
@@ -155,27 +156,30 @@ func run() (int, error) {
 		fmt.Fprintln(os.Stderr, "Warning: MFA duration can not exceed 12 hours.")
 	}
 	if mfaSecretFlag {
-		fmt.Fprintln(os.Stderr, "Read more about the --mfa-secret feature here: https://github.com/stefansundin/shrimp/discussions/3")
-		secret, ok := os.LookupEnv("AWS_MFA_SECRET")
-		if ok {
-			fmt.Fprintln(os.Stderr, "MFA secret read from AWS_MFA_SECRET.")
-		} else {
-			fmt.Fprint(os.Stderr, "MFA secret: ")
-			_, err := fmt.Scanln(&secret)
-			fmt.Fprint(os.Stderr, "\033[1A\033[2K") // erase the line
-			if err != nil {
-				return 1, err
-			}
-		}
-		fmt.Fprintln(os.Stderr)
-		// Normalize secret
-		secret = strings.TrimSpace(secret)
-		if n := len(secret) % 8; n != 0 {
-			secret = secret + strings.Repeat("=", 8-n)
-		}
-		secret = strings.ToUpper(secret)
 		var err error
-		mfaSecret, err = base32.StdEncoding.DecodeString(secret)
+		secret.Do(func() {
+			fmt.Fprintln(os.Stderr, "Read more about the --mfa-secret feature here: https://github.com/stefansundin/shrimp/discussions/3")
+			s, ok := os.LookupEnv("AWS_MFA_SECRET")
+			if ok {
+				os.Unsetenv("AWS_MFA_SECRET")
+				fmt.Fprintln(os.Stderr, "MFA secret read from AWS_MFA_SECRET.")
+			} else {
+				fmt.Fprint(os.Stderr, "MFA secret: ")
+				_, err := fmt.Scanln(&s)
+				fmt.Fprint(os.Stderr, "\033[1A\033[2K") // erase the line
+				if err != nil {
+					return
+				}
+			}
+			fmt.Fprintln(os.Stderr)
+			// Normalize secret
+			s = strings.TrimSpace(s)
+			if n := len(s) % 8; n != 0 {
+				s = s + strings.Repeat("=", 8-n)
+			}
+			s = strings.ToUpper(s)
+			mfaSecret, err = base32.StdEncoding.DecodeString(s)
+		})
 		if err != nil {
 			return 1, errors.New("Error: Invalid MFA secret.")
 		}

@@ -1,6 +1,8 @@
 VERSION = 0.2.0
 LDFLAGS = -ldflags='-s -w' -trimpath
 
+export GOEXPERIMENT=runtimesecret
+
 linux_amd64: export GOOS=linux
 linux_amd64: export GOARCH=amd64
 linux_arm: export GOOS=linux
@@ -19,9 +21,12 @@ windows_arm: export GOARCH=arm
 windows_arm64: export GOOS=windows
 windows_arm64: export GOARCH=arm64
 
-.PHONY: all linux_amd64 linux_arm linux_arm64 darwin_amd64 darwin_arm64 windows_amd64 windows_arm windows_arm64 clean
+.PHONY: all build linux_amd64 linux_arm linux_arm64 darwin_amd64 darwin_arm64 windows_amd64 windows_arm windows_arm64 clean
 
 all: linux_amd64 linux_arm linux_arm64 darwin_amd64 darwin_arm64 windows_amd64 windows_arm windows_arm64
+
+build:
+	go build
 
 linux_amd64:
 	go build $(LDFLAGS)
